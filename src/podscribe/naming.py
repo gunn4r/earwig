@@ -57,6 +57,7 @@ def _run_claude(prompt: str) -> str:
             ["claude", "-p", "--model", "haiku", prompt],
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=120,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -109,7 +110,7 @@ def resolve_names(
 
     try:
         guesses = infer_names(paragraphs, runner=runner)
-    except NamingError:
+    except Exception:
         guesses = {s: None for s in speakers}
 
     if auto:

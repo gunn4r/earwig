@@ -78,3 +78,22 @@ def test_resolve_names_interactive_prompts_and_overrides():
     answers = iter(["", "Bob Smith"])
     out = resolve_names(paras(), runner=runner, prompt_fn=lambda _: next(answers))
     assert out == {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob Smith"}
+
+
+def test_resolve_names_auto_degrades_on_value_error():
+    """resolve_names must catch non-NamingError exceptions from runner."""
+    def boom(prompt):
+        raise ValueError("unexpected runner error")
+    # auto=True + non-NamingError exception -> every speaker falls back to raw id, no exception
+    out = resolve_names(paras(), auto=True, runner=boom)
+    assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
+
+
+def test_resolve_names_interactive_degrades_on_value_error():
+    """resolve_names interactive path must catch non-NamingError exceptions and still return names."""
+    def boom(prompt):
+        raise ValueError("unexpected runner error")
+    # interactive path with runner failure -> prompt_fn called, blank input -> falls back to raw id
+    answers = iter(["", ""])
+    out = resolve_names(paras(), runner=boom, prompt_fn=lambda _: next(answers))
+    assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
