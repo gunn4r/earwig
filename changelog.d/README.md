@@ -1,12 +1,10 @@
 # Changelog fragments
 
-Every pull request that changes behavior adds a news fragment here. At release time,
-`towncrier build` compiles these fragments into `../CHANGELOG.md` and deletes them.
+Every pull request that changes behavior adds a news fragment here. At release time, `towncrier build` compiles these fragments into `../CHANGELOG.md` and deletes them.
 
 ## Format
 
-One file per change, named `<issue>.<type>.md` (or `+<slug>.<type>.md` when there is no
-issue number). The file body is the changelog line — markdown, one or two sentences.
+One file per change, named `<issue>.<type>.md` (or `+<slug>.<type>.md` when there is no issue number). The file body is the changelog line — markdown, one or two sentences.
 
 ## Types (and semver impact while pre-1.0)
 
