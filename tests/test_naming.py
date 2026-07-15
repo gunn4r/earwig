@@ -1,3 +1,5 @@
+import urllib.error
+
 import pytest
 
 from earwig.models import Paragraph, NamingError
@@ -8,6 +10,7 @@ from earwig.naming import (
     infer_names,
     resolve_names,
     heuristic_names,
+    _run_ollama,
 )
 
 
@@ -161,3 +164,36 @@ def test_heuristic_self_intro_wins_over_later_mention():
     # SPEAKER_00 keeps Alice; the "joined by" does not overwrite an existing name.
     out = heuristic_names(p)
     assert out["SPEAKER_00"] == "Alice"
+
+
+class _FakeResp:
+    def __init__(self, body: bytes):
+        self._body = body
+    def read(self):
+        return self._body
+    def __enter__(self):
+        return self
+    def __exit__(self, *a):
+        return False
+
+
+def test_run_ollama_returns_response_field(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["data"] = req.data
+        return _FakeResp(b'{"response": "{\\"SPEAKER_00\\": \\"Alice\\"}"}')
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    out = _run_ollama("prompt text")
+    assert out == '{"SPEAKER_00": "Alice"}'
+    assert b"prompt text" in captured["data"]
+
+
+def test_run_ollama_raises_naming_error_when_unreachable(monkeypatch):
+    def boom(req, timeout=None):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr("urllib.request.urlopen", boom)
+    with pytest.raises(NamingError):
+        _run_ollama("prompt text")

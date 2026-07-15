@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import urllib.error
+import urllib.request
 from collections.abc import Callable, Iterable
 
 from .models import NamingError, Paragraph
@@ -151,6 +153,28 @@ def _run_claude(prompt: str) -> str:
     if result.returncode != 0:
         raise NamingError(result.stderr.strip() or "claude -p failed")
     return result.stdout
+
+
+_OLLAMA_URL = "http://localhost:11434/api/generate"
+_OLLAMA_MODEL = "llama3.2"
+
+
+def _run_ollama(prompt: str) -> str:
+    payload = json.dumps(
+        {"model": _OLLAMA_MODEL, "prompt": prompt, "stream": False}
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        _OLLAMA_URL, data=payload, headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
+        raise NamingError(f"could not run ollama: {exc}") from exc
+    text = body.get("response")
+    if not isinstance(text, str):
+        raise NamingError(f"unexpected ollama response: {body!r}")
+    return text
 
 
 def infer_names(
