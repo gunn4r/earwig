@@ -7,7 +7,44 @@ def test_parse_args_defaults():
     assert args.url == "https://youtu.be/x"
     assert args.auto is False
     assert args.model == "large-v3"
-    assert args.no_naming is False
+    assert args.namer is None
+
+
+def test_parse_args_namer_choice():
+    args = cli.parse_args(["u", "--namer", "off"])
+    assert args.namer == "off"
+
+
+def test_resolve_namer_defaults_to_heuristic(monkeypatch):
+    monkeypatch.delenv("EARWIG_NAMER", raising=False)
+    assert cli._resolve_namer(None) == "heuristic"
+
+
+def test_resolve_namer_reads_env(monkeypatch):
+    monkeypatch.setenv("EARWIG_NAMER", "local")
+    assert cli._resolve_namer(None) == "local"
+
+
+def test_resolve_namer_explicit_flag_beats_env(monkeypatch):
+    monkeypatch.setenv("EARWIG_NAMER", "local")
+    assert cli._resolve_namer("heuristic") == "heuristic"
+
+
+def test_resolve_namer_auto_prefers_claude_when_present(monkeypatch):
+    monkeypatch.delenv("EARWIG_NAMER", raising=False)
+    monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/claude")
+    assert cli._resolve_namer("auto") == "claude"
+
+
+def test_resolve_namer_auto_falls_back_to_heuristic(monkeypatch):
+    monkeypatch.delenv("EARWIG_NAMER", raising=False)
+    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
+    assert cli._resolve_namer("auto") == "heuristic"
+
+
+def test_resolve_namer_invalid_env_falls_back_to_heuristic(monkeypatch):
+    monkeypatch.setenv("EARWIG_NAMER", "bogus")
+    assert cli._resolve_namer(None) == "heuristic"
 
 
 def test_main_writes_transcript(tmp_path, monkeypatch, capsys):
@@ -36,6 +73,29 @@ def test_main_handles_fetch_error(monkeypatch, capsys):
     code = cli.main(["u", "--auto"])
     assert code == 1
     assert "video unavailable" in capsys.readouterr().err
+
+
+def test_main_namer_off_skips_confirm_prompt(tmp_path, monkeypatch, capsys):
+    # With --namer off, `interactive` is False, so input() must never be
+    # called -- verify by making input() raise if it's ever invoked.
+    out = tmp_path / "e.md"
+    meta = Metadata(title="Ep", channel="Pod", duration_seconds=60, url="u")
+
+    monkeypatch.setattr(cli, "fetch", lambda url, workdir: ("/fake/audio.wav", meta))
+    monkeypatch.setattr(
+        cli, "transcribe",
+        lambda audio, model_size: [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")],
+    )
+    monkeypatch.setattr(cli, "resolve_names", lambda paras, **kw: {"SPEAKER_00": "SPEAKER_00"})
+
+    def no_prompt(prompt=""):
+        raise AssertionError("input() must not be called when --namer off")
+
+    monkeypatch.setattr("builtins.input", no_prompt)
+
+    code = cli.main(["u", "--namer", "off", "--output", str(out)])
+    assert code == 0
+    assert out.exists()
 
 
 def test_main_interactive_abort_writes_nothing(tmp_path, monkeypatch, capsys):

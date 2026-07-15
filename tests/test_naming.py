@@ -1,3 +1,5 @@
+import urllib.error
+
 import pytest
 
 from earwig.models import Paragraph, NamingError
@@ -7,6 +9,8 @@ from earwig.naming import (
     parse_mapping,
     infer_names,
     resolve_names,
+    heuristic_names,
+    _run_ollama,
 )
 
 
@@ -66,46 +70,157 @@ def test_infer_names_uses_injected_runner():
 
 
 def test_resolve_names_auto_applies_guesses_and_falls_back_for_null():
-    runner = lambda prompt: '{"SPEAKER_00": "Alice", "SPEAKER_01": null}'
-    out = resolve_names(paras(), auto=True, runner=runner)
+    namer_fn = lambda paras: {"SPEAKER_00": "Alice", "SPEAKER_01": None}
+    out = resolve_names(paras(), auto=True, namer_fn=namer_fn)
     assert out == {"SPEAKER_00": "Alice", "SPEAKER_01": "SPEAKER_01"}
 
 
-def test_resolve_names_no_naming_keeps_raw_ids():
-    out = resolve_names(paras(), no_naming=True)
+def test_resolve_names_off_keeps_raw_ids():
+    out = resolve_names(paras(), namer="off")
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
-def test_resolve_names_degrades_when_runner_fails():
-    def boom(prompt):
-        raise NamingError("claude unavailable")
-    # auto=True + failure -> every speaker falls back to raw id, no exception
-    out = resolve_names(paras(), auto=True, runner=boom)
+def test_resolve_names_degrades_when_namer_fails():
+    def boom(paras):
+        raise NamingError("namer unavailable")
+    out = resolve_names(paras(), auto=True, namer_fn=boom)
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
 def test_resolve_names_interactive_prompts_and_overrides():
-    runner = lambda prompt: '{"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}'
-    # user accepts Alice (blank -> guess), overrides Bob -> Bob Smith
+    namer_fn = lambda paras: {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}
     answers = iter(["", "Bob Smith"])
-    out = resolve_names(paras(), runner=runner, prompt_fn=lambda _: next(answers))
+    out = resolve_names(paras(), namer_fn=namer_fn, prompt_fn=lambda _: next(answers))
     assert out == {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob Smith"}
 
 
 def test_resolve_names_auto_degrades_on_value_error():
-    """resolve_names must catch non-NamingError exceptions from runner."""
-    def boom(prompt):
-        raise ValueError("unexpected runner error")
-    # auto=True + non-NamingError exception -> every speaker falls back to raw id, no exception
-    out = resolve_names(paras(), auto=True, runner=boom)
+    """resolve_names must catch non-NamingError exceptions from the namer."""
+    def boom(paras):
+        raise ValueError("unexpected namer error")
+    out = resolve_names(paras(), auto=True, namer_fn=boom)
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
 def test_resolve_names_interactive_degrades_on_value_error():
-    """resolve_names interactive path must catch non-NamingError exceptions and still return names."""
-    def boom(prompt):
-        raise ValueError("unexpected runner error")
-    # interactive path with runner failure -> prompt_fn called, blank input -> falls back to raw id
+    """Interactive path must catch non-NamingError exceptions and still return names."""
+    def boom(paras):
+        raise ValueError("unexpected namer error")
     answers = iter(["", ""])
-    out = resolve_names(paras(), runner=boom, prompt_fn=lambda _: next(answers))
+    out = resolve_names(paras(), namer_fn=boom, prompt_fn=lambda _: next(answers))
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
+
+
+def test_namers_registry_has_concrete_strategies():
+    from earwig.naming import NAMERS, NAMER_CHOICES
+    assert set(NAMERS) == {"claude", "local", "heuristic"}
+    assert NAMER_CHOICES == ("auto", "claude", "local", "heuristic", "off")
+
+
+def test_resolve_names_unknown_namer_degrades_to_raw_ids():
+    # An unknown namer string must not raise KeyError -- it should degrade
+    # to raw speaker ids, same as any other namer failure.
+    out = resolve_names(paras(), auto=True, namer="bogus")
+    assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
+
+
+def test_resolve_names_defaults_to_heuristic():
+    # No namer_fn, no namer arg -> uses the heuristic namer on real text.
+    out = resolve_names(paras(), auto=True)
+    assert out == {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}
+
+
+def test_heuristic_self_introduction():
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="Welcome, I'm Alice."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="Thanks Alice, I'm Bob."),
+    ]
+    assert heuristic_names(p) == {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}
+
+
+def test_heuristic_my_name_is_and_here():
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="My name is Sarah Chen."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="Dave here, good to be on."),
+    ]
+    assert heuristic_names(p) == {"SPEAKER_00": "Sarah Chen", "SPEAKER_01": "Dave"}
+
+
+def test_heuristic_guest_intro_maps_to_next_speaker():
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="Today I'm joined by Marcus."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="Great to be here."),
+    ]
+    assert heuristic_names(p) == {"SPEAKER_00": None, "SPEAKER_01": "Marcus"}
+
+
+def test_heuristic_no_match_returns_none():
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="So anyway, the weather was nice."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="Yeah, totally."),
+    ]
+    assert heuristic_names(p) == {"SPEAKER_00": None, "SPEAKER_01": None}
+
+
+def test_heuristic_rejects_capitalized_non_names():
+    # "I'm Great" must not become the name "Great"; sentence-initial "So" is not a name.
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="I'm Great, thanks for asking."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="So, where were we?"),
+    ]
+    assert heuristic_names(p) == {"SPEAKER_00": None, "SPEAKER_01": None}
+
+
+def test_heuristic_self_intro_wins_over_later_mention():
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="I'm Alice."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="I'm joined by Alice's twin."),
+    ]
+    # SPEAKER_00 keeps Alice; the "joined by" does not overwrite an existing name.
+    out = heuristic_names(p)
+    assert out["SPEAKER_00"] == "Alice"
+
+
+class _FakeResp:
+    def __init__(self, body: bytes):
+        self._body = body
+    def read(self):
+        return self._body
+    def __enter__(self):
+        return self
+    def __exit__(self, *a):
+        return False
+
+
+def test_run_ollama_returns_response_field(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["data"] = req.data
+        return _FakeResp(b'{"response": "{\\"SPEAKER_00\\": \\"Alice\\"}"}')
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    out = _run_ollama("prompt text")
+    assert out == '{"SPEAKER_00": "Alice"}'
+    assert b"prompt text" in captured["data"]
+
+
+def test_run_ollama_raises_naming_error_when_unreachable(monkeypatch):
+    def boom(req, timeout=None):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr("urllib.request.urlopen", boom)
+    with pytest.raises(NamingError):
+        _run_ollama("prompt text")
+
+
+def test_run_ollama_raises_naming_error_on_non_object_json(monkeypatch):
+    # A valid JSON array (not an object) must not surface as AttributeError
+    # from body.get(...) -- it should degrade to a NamingError like any
+    # other malformed-response case.
+    def fake_urlopen(req, timeout=None):
+        return _FakeResp(b"[1, 2, 3]")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    with pytest.raises(NamingError):
+        _run_ollama("prompt text")
