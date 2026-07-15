@@ -125,9 +125,6 @@ lot for the larger models.
     pytest -q                     # fast unit suite (no token/network needed)
     pytest -m slow                # end-to-end test (needs HF_TOKEN, network, ffmpeg)
 
-See [`docs/superpowers/specs`](docs/superpowers/specs) for the design spec and
-[`docs/superpowers/plans`](docs/superpowers/plans) for the implementation plan.
-
 ## Licensing note
 
 earwig's own code is MIT licensed (see [`LICENSE`](LICENSE)). The `pyannote` diarization

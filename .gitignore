@@ -16,6 +16,9 @@ venv/
 # Subagent-driven-development scratch (briefs, reports, review diffs, ledger)
 .superpowers/
 
+# Internal planning/design docs — kept local, not published
+docs/
+
 # Local secrets / config
 .env
 .env.*
