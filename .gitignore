@@ -13,6 +13,9 @@ venv/
 .ruff_cache/
 .mypy_cache/
 
+# Subagent-driven-development scratch (briefs, reports, review diffs, ledger)
+.superpowers/
+
 # Local secrets / config
 .env
 .env.*

@@ -1,7 +1,7 @@
 import pytest
 
-from podscribe.models import Paragraph, NamingError
-from podscribe.naming import (
+from earwig.models import Paragraph, NamingError
+from earwig.naming import (
     collect_speaker_samples,
     build_prompt,
     parse_mapping,

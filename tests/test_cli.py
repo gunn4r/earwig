@@ -1,5 +1,5 @@
-import podscribe.cli as cli
-from podscribe.models import Metadata, Paragraph, Segment, FetchError
+import earwig.cli as cli
+from earwig.models import Metadata, Paragraph, Segment, FetchError
 
 
 def test_parse_args_defaults():

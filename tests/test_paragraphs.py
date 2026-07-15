@@ -1,5 +1,5 @@
-from podscribe.models import Segment
-from podscribe.paragraphs import build_paragraphs
+from earwig.models import Segment
+from earwig.paragraphs import build_paragraphs
 
 
 def seg(text, start, end, speaker):

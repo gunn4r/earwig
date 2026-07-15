@@ -1,10 +1,10 @@
-# podscribe
+# earwig
 
 A local CLI that turns a YouTube podcast URL into a verbatim, per-paragraph-timestamped,
 speaker-labeled Markdown transcript.
 
 ```bash
-podscribe "https://youtube.com/watch?v=..."
+earwig "https://youtube.com/watch?v=..."
 # → writes ./the-podcast-episode-title.md
 ```
 
@@ -33,10 +33,10 @@ file in the project root):
 
 ## Usage
 
-    podscribe "https://youtube.com/watch?v=..."      # review speaker names, then writes .md
-    podscribe "<url>" --auto                          # skip the review step
-    podscribe "<url>" --no-naming                     # keep raw SPEAKER_xx labels
-    podscribe "<url>" --model medium --output ep.md   # faster model, explicit path
+    earwig "https://youtube.com/watch?v=..."      # review speaker names, then writes .md
+    earwig "<url>" --auto                          # skip the review step
+    earwig "<url>" --no-naming                     # keep raw SPEAKER_xx labels
+    earwig "<url>" --model medium --output ep.md   # faster model, explicit path
 
 The default model is `large-v3` (most accurate, slow on CPU). Use `--model base` or
 `--model medium` for much faster runs at some cost to transcription quality.

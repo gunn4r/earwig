@@ -1,7 +1,7 @@
 import pytest
 
-from podscribe.models import TranscribeError
-from podscribe.transcribe import _segments_from_whisperx, transcribe
+from earwig.models import TranscribeError
+from earwig.transcribe import _segments_from_whisperx, transcribe
 
 
 def test_segments_from_whisperx_maps_fields():

@@ -1,5 +1,5 @@
-from podscribe.models import Metadata, Paragraph
-from podscribe.render import format_timestamp, to_markdown
+from earwig.models import Metadata, Paragraph
+from earwig.render import format_timestamp, to_markdown
 
 
 def test_format_timestamp_under_hour():

@@ -1,4 +1,4 @@
-from podscribe.models import Metadata, Segment, Paragraph, FetchError, PodscribeError
+from earwig.models import Metadata, Segment, Paragraph, FetchError, PodscribeError
 
 
 def test_dataclasses_construct():

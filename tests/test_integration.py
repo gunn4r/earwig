@@ -12,7 +12,7 @@ SHORT_CLIP_URL = "https://www.youtube.com/watch?v=6ErnEr2JcD0"  # real validatio
 def test_end_to_end_produces_transcript(tmp_path):
     out = tmp_path / "out.md"
     result = subprocess.run(
-        [sys.executable, "-m", "podscribe.cli", SHORT_CLIP_URL,
+        [sys.executable, "-m", "earwig.cli", SHORT_CLIP_URL,
          "--auto", "--model", "base", "--output", str(out)],
         capture_output=True, text=True, timeout=1800,
     )

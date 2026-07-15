@@ -1,4 +1,4 @@
-from podscribe.fetch import _metadata_from_info, sanitize_filename
+from earwig.fetch import _metadata_from_info, sanitize_filename
 
 
 def test_metadata_from_info_maps_fields():

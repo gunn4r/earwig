@@ -15,7 +15,7 @@ from .transcribe import transcribe
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="podscribe",
+        prog="earwig",
         description="Turn a YouTube podcast URL into a speaker-labeled Markdown transcript.",
     )
     parser.add_argument("url", help="YouTube video URL")
