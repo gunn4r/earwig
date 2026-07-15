@@ -20,8 +20,14 @@ Requires Python 3.11+ and `ffmpeg` on your PATH.
 
 ## Setup (one time)
 
-Create a free Hugging Face token, accept the terms for the
-`pyannote/speaker-diarization` model, then:
+Speaker diarization uses gated Hugging Face models. Create a free Hugging Face token,
+then click "Agree and access repository" on both:
+
+- https://huggingface.co/pyannote/speaker-diarization-community-1
+- https://huggingface.co/pyannote/segmentation-3.0
+
+Then make the token available (either export it, or put `HF_TOKEN=hf_...` in a `.env`
+file in the project root):
 
     export HF_TOKEN=hf_...
 
@@ -31,3 +37,13 @@ Create a free Hugging Face token, accept the terms for the
     podscribe "<url>" --auto                          # skip the review step
     podscribe "<url>" --no-naming                     # keep raw SPEAKER_xx labels
     podscribe "<url>" --model medium --output ep.md   # faster model, explicit path
+
+The default model is `large-v3` (most accurate, slow on CPU). Use `--model base` or
+`--model medium` for much faster runs at some cost to transcription quality.
+
+## Troubleshooting
+
+- **`GatedRepoError` / 403 on a pyannote model** — you haven't accepted that model's terms
+  yet. Open the model page (see Setup) and click "Agree and access repository".
+- **`torchcodec` / `libtorchcodec` warning about ffmpeg versions** — harmless. whisperX
+  falls back to another audio backend; transcription and diarization still run.
