@@ -62,6 +62,18 @@ See `changelog.d/README.md` for the type/semver table.
 earwig follows [semver](https://semver.org) and is pre-1.0 (beta): `feature`/`removal`
 fragments bump the minor, `bugfix` bumps the patch.
 
+The easy path is the release script, which does the whole sequence (build changelog →
+bump version → reinstall → commit → tag) and stops short of pushing so you can review:
+
+```bash
+./scripts/release.sh 0.3.0 --dry-run   # preview the changelog only, change nothing
+./scripts/release.sh 0.3.0             # cut the release locally
+git push && git push origin v0.3.0     # publish once you're happy
+```
+
+It's a maintainer tool (POSIX bash — macOS/Linux; on Windows use WSL/Git Bash or the manual
+steps below). Under the hood it does exactly this, which you can also run by hand:
+
 1. Ensure the release's fragments are all in `changelog.d/`.
 2. Build the changelog: `towncrier build --version X.Y.Z` (compiles fragments into
    `CHANGELOG.md` and deletes them).
