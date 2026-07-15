@@ -19,6 +19,9 @@ venv/
 # Internal planning/design docs — kept local, not published
 docs/
 
+# Local agent guide — may reference the local machine; kept private
+CLAUDE.md
+
 # Local secrets / config
 .env
 .env.*
