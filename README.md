@@ -7,6 +7,8 @@
 <p align="center">
   <a href="https://github.com/gunn4r/earwig/actions/workflows/ci.yml"><img src="https://github.com/gunn4r/earwig/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.0-blue.svg" alt="Version 0.2.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/status-beta-orange.svg" alt="Status: beta"></a>
 </p>
 
 > _earwig_ (v.) — to listen in on a conversation.
@@ -36,6 +38,9 @@ didn't need me glued to a laptop all day...
 
 > The example above is fictional. See [`examples/example-transcript.md`](examples/example-transcript.md)
 > for a fuller synthetic sample of earwig's output.
+
+> **Status:** beta (`0.x`) — pre-1.0, so flags and output may still change. Release history
+> lives in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Why
 
