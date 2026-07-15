@@ -7,11 +7,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+from .config import load_config
 from .fetch import fetch, sanitize_filename
 from .models import PodscribeError
 from .naming import NAMER_CHOICES, resolve_names
 from .paragraphs import build_paragraphs
 from .render import to_markdown
+from .setup import run_setup
 from .transcribe import transcribe
 
 
@@ -35,6 +37,32 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def parse_setup_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="earwig setup",
+        description="Interactive first-time setup: Hugging Face token, "
+                    "prerequisites, and your default namer.",
+    )
+    parser.add_argument(
+        "--namer", choices=NAMER_CHOICES, default=None,
+        help="persist this default namer instead of asking",
+    )
+    parser.add_argument(
+        "--no-open-browser", action="store_true",
+        help="don't offer to open the Hugging Face pages in a browser",
+    )
+    return parser.parse_args(argv)
+
+
+def _setup_command(argv: list[str]) -> int:
+    args = parse_setup_args(argv)
+    try:
+        return run_setup(namer=args.namer, open_browser=not args.no_open_browser)
+    except OSError as exc:  # e.g. the config file is not writable
+        print(f"error: could not write the config file: {exc}", file=sys.stderr)
+        return 1
+
+
 def _resolve_namer(selected: str | None) -> str:
     name = selected or os.environ.get("EARWIG_NAMER") or "heuristic"
     if name not in NAMER_CHOICES:
@@ -45,6 +73,10 @@ def _resolve_namer(selected: str | None) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    load_config()
+    if argv and argv[0] == "setup":
+        return _setup_command(argv[1:])
     args = parse_args(argv)
     try:
         with tempfile.TemporaryDirectory() as workdir:

@@ -32,9 +32,9 @@ def transcribe(
     hf_token = hf_token or os.environ.get("HF_TOKEN")
     if not hf_token:
         raise TranscribeError(
-            "HF_TOKEN is not set. Create a free Hugging Face token, accept the terms "
-            "for pyannote/speaker-diarization-community-1 (and pyannote/segmentation-3.0), "
-            "then export HF_TOKEN=... (one-time setup)."
+            "HF_TOKEN is not set. Run `earwig setup` to create a Hugging Face token, "
+            "accept the two gated pyannote model licenses, and save the token — or set "
+            "HF_TOKEN yourself if you'd rather do it by hand."
         )
 
     import whisperx  # imported lazily so unit tests and --help stay fast
