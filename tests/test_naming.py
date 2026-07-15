@@ -7,6 +7,7 @@ from earwig.naming import (
     parse_mapping,
     infer_names,
     resolve_names,
+    heuristic_names,
 )
 
 
@@ -109,3 +110,54 @@ def test_resolve_names_interactive_degrades_on_value_error():
     answers = iter(["", ""])
     out = resolve_names(paras(), runner=boom, prompt_fn=lambda _: next(answers))
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
+
+
+def test_heuristic_self_introduction():
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="Welcome, I'm Alice."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="Thanks Alice, I'm Bob."),
+    ]
+    assert heuristic_names(p) == {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}
+
+
+def test_heuristic_my_name_is_and_here():
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="My name is Sarah Chen."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="Dave here, good to be on."),
+    ]
+    assert heuristic_names(p) == {"SPEAKER_00": "Sarah Chen", "SPEAKER_01": "Dave"}
+
+
+def test_heuristic_guest_intro_maps_to_next_speaker():
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="Today I'm joined by Marcus."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="Great to be here."),
+    ]
+    assert heuristic_names(p) == {"SPEAKER_00": None, "SPEAKER_01": "Marcus"}
+
+
+def test_heuristic_no_match_returns_none():
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="So anyway, the weather was nice."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="Yeah, totally."),
+    ]
+    assert heuristic_names(p) == {"SPEAKER_00": None, "SPEAKER_01": None}
+
+
+def test_heuristic_rejects_capitalized_non_names():
+    # "I'm Great" must not become the name "Great"; sentence-initial "So" is not a name.
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="I'm Great, thanks for asking."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="So, where were we?"),
+    ]
+    assert heuristic_names(p) == {"SPEAKER_00": None, "SPEAKER_01": None}
+
+
+def test_heuristic_self_intro_wins_over_later_mention():
+    p = [
+        Paragraph(speaker="SPEAKER_00", start=0.0, text="I'm Alice."),
+        Paragraph(speaker="SPEAKER_01", start=5.0, text="I'm joined by Alice's twin."),
+    ]
+    # SPEAKER_00 keeps Alice; the "joined by" does not overwrite an existing name.
+    out = heuristic_names(p)
+    assert out["SPEAKER_00"] == "Alice"
