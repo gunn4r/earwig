@@ -117,14 +117,14 @@ lot for the larger models.
 
 ## Speaker naming
 
-earwig ships four speaker-naming strategies, selected with `--namer {auto,claude,local,heuristic,off}`:
+earwig ships four speaker-naming strategies plus an `auto` selection mode, selected with `--namer {auto,claude,local,heuristic,off}`:
 
 - **`heuristic`** (the default) — a zero-dependency regex matcher that looks for
   self-introductions and guest introductions/direct-address ("I'm Dana", "welcome, Marcus")
   to infer names. Runs fully offline, no external process or network call.
 - **`claude`** — shells out to the [Claude CLI](https://github.com/anthropics/claude-code)
-  (`claude -p`) with a small text slice from the transcript. Requires `claude` on your
-  `PATH` and authenticated.
+  (`claude -p`) with a small text slice from the transcript. Requires the `claude` CLI on your
+  `PATH`, authenticated.
 - **`local`** — sends the same kind of prompt to a local [Ollama](https://ollama.com)
   server (`http://localhost:11434`). Requires Ollama running with a model pulled.
 - **`off`** — skip naming entirely and keep the raw `SPEAKER_xx` labels non-interactively.
