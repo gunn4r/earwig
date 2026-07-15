@@ -410,3 +410,40 @@ def test_run_setup_respects_browser_decline(tmp_path, monkeypatch):
         getpass_fn=lambda prompt="": "hf_secret",
     )
     assert opened == []
+
+
+def test_run_setup_survives_closed_stdin(tmp_path, monkeypatch):
+    # `earwig setup </dev/null` must still run the checks and report, not
+    # traceback: EOF means "no answer", so every prompt takes its default.
+    stub_all_checks(monkeypatch)
+    def eof(prompt=""):
+        raise EOFError
+
+    env = tmp_path / "env"
+    code = run_setup(
+        namer=None,
+        env_path=env,
+        open_browser=True,
+        input_fn=eof,
+        getpass_fn=eof,
+    )
+    assert code == 0
+    assert "EARWIG_NAMER=heuristic" in env.read_text()
+
+
+def test_run_setup_closed_stdin_does_not_open_browser(tmp_path, monkeypatch):
+    stub_all_checks(monkeypatch)
+    opened = []
+    monkeypatch.setattr(setup_mod.webbrowser, "open", lambda url: opened.append(url))
+
+    def eof(prompt=""):
+        raise EOFError
+
+    run_setup(
+        namer=None,
+        env_path=tmp_path / "env",
+        open_browser=True,
+        input_fn=eof,
+        getpass_fn=eof,
+    )
+    assert opened == []

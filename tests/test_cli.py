@@ -171,7 +171,18 @@ def test_main_setup_reports_unwritable_config(monkeypatch, capsys):
 
     monkeypatch.setattr(cli, "run_setup", boom)
     assert cli.main(["setup"]) == 1
-    assert "read-only file system" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "error: setup failed:" in err
+    assert "read-only file system" in err
+
+
+def test_main_setup_handles_interrupt(monkeypatch, capsys):
+    def boom(**kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "run_setup", boom)
+    assert cli.main(["setup"]) == 1
+    assert "cancelled" in capsys.readouterr().err.lower()
 
 
 def test_main_loads_config(monkeypatch):

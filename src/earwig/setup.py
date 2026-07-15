@@ -25,6 +25,34 @@ _OLLAMA_TAGS_URL = f"{OLLAMA_BASE_URL}/api/tags"
 _TIMEOUT = 15
 
 
+class _EOFAnswer(str):
+    """An empty answer that came from EOF rather than a real keystroke.
+
+    `.strip()` (called by every prompt site except `_open_pages`) collapses
+    this back to a plain `str`, so those sites can't tell EOF apart from an
+    interactive empty Enter — which is fine, since their default already is
+    the safe choice. `_open_pages` checks identity *before* stripping, so it
+    alone can tell "nobody answered" from "the user accepted the default".
+    """
+
+
+_EOF = _EOFAnswer("")
+
+
+def _ask(ask_fn: Callable[[str], str], prompt: str) -> str:
+    """Ask a question, treating end-of-input as an empty answer.
+
+    input() and getpass() raise EOFError when stdin is closed or exhausted.
+    `earwig setup </dev/null` should still run the checks and report — every
+    prompt just takes its default — rather than dying with a traceback.
+    """
+    try:
+        return ask_fn(prompt)
+    except EOFError:
+        print()  # the prompt printed no newline of its own
+        return _EOF
+
+
 @dataclass
 class CheckResult:
     """One prerequisite check: what was checked, whether it passed, and either
@@ -141,14 +169,18 @@ def check_namer(namer: str) -> CheckResult:
 
 def _prompt_namer(input_fn: Callable[[str], str]) -> str:
     choices = ", ".join(NAMER_CHOICES)
-    entry = input_fn(f"Default speaker namer ({choices}) [heuristic]: ").strip()
+    entry = _ask(input_fn, f"Default speaker namer ({choices}) [heuristic]: ").strip()
     # Mirror cli._resolve_namer: an unrecognized answer degrades to heuristic
     # rather than erroring out mid-wizard.
     return entry if entry in NAMER_CHOICES else "heuristic"
 
 
 def _open_pages(input_fn: Callable[[str], str]) -> None:
-    if input_fn("Open these in your browser? [Y/n]: ").strip().lower() == "n":
+    answer = _ask(input_fn, "Open these in your browser? [Y/n]: ")
+    # EOF means nobody is present to confirm — unlike an interactive plain
+    # Enter, which keeps the documented [Y/n] default of yes, it must not
+    # launch a browser.
+    if answer is _EOF or answer.strip().lower() == "n":
         return
     webbrowser.open(HF_TOKEN_URL)
     for repo in GATED_REPOS:
@@ -158,7 +190,7 @@ def _open_pages(input_fn: Callable[[str], str]) -> None:
 def _capture_token(env_path: Path, getpass_fn: Callable[[str], str]) -> str:
     """Prompt for the token and persist it. Returns the token to check against:
     the freshly entered one, or an existing one from the environment."""
-    token = getpass_fn("Paste your Hugging Face token (input is hidden): ").strip()
+    token = _ask(getpass_fn, "Paste your Hugging Face token (input is hidden): ").strip()
     if not token:
         existing = os.environ.get("HF_TOKEN", "")
         print("No token entered — keeping the one already in your environment."
@@ -197,9 +229,10 @@ def run_setup(
     if open_browser:
         _open_pages(input_fn)
 
-    input_fn(
+    _ask(
+        input_fn,
         "Press Enter once you've created your token and clicked 'Agree and "
-        "access repository' on both models... "
+        "access repository' on both models... ",
     )
 
     token = _capture_token(env_path, getpass_fn)

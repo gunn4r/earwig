@@ -58,8 +58,12 @@ def _setup_command(argv: list[str]) -> int:
     args = parse_setup_args(argv)
     try:
         return run_setup(namer=args.namer, open_browser=not args.no_open_browser)
-    except OSError as exc:  # e.g. the config file is not writable
-        print(f"error: could not write the config file: {exc}", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("\nSetup cancelled.", file=sys.stderr)
+        return 1
+    except OSError as exc:  # e.g. the config file is not writable, or another
+        # OSError surfaced somewhere in run_setup (e.g. a network check)
+        print(f"error: setup failed: {exc}", file=sys.stderr)
         return 1
 
 
