@@ -117,6 +117,13 @@ def test_namers_registry_has_concrete_strategies():
     assert NAMER_CHOICES == ("auto", "claude", "local", "heuristic", "off")
 
 
+def test_resolve_names_unknown_namer_degrades_to_raw_ids():
+    # An unknown namer string must not raise KeyError -- it should degrade
+    # to raw speaker ids, same as any other namer failure.
+    out = resolve_names(paras(), auto=True, namer="bogus")
+    assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
+
+
 def test_resolve_names_defaults_to_heuristic():
     # No namer_fn, no namer arg -> uses the heuristic namer on real text.
     out = resolve_names(paras(), auto=True)
@@ -203,5 +210,17 @@ def test_run_ollama_raises_naming_error_when_unreachable(monkeypatch):
         raise urllib.error.URLError("connection refused")
 
     monkeypatch.setattr("urllib.request.urlopen", boom)
+    with pytest.raises(NamingError):
+        _run_ollama("prompt text")
+
+
+def test_run_ollama_raises_naming_error_on_non_object_json(monkeypatch):
+    # A valid JSON array (not an object) must not surface as AttributeError
+    # from body.get(...) -- it should degrade to a NamingError like any
+    # other malformed-response case.
+    def fake_urlopen(req, timeout=None):
+        return _FakeResp(b"[1, 2, 3]")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
     with pytest.raises(NamingError):
         _run_ollama("prompt text")

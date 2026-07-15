@@ -171,6 +171,8 @@ def _run_ollama(prompt: str) -> str:
             body = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
         raise NamingError(f"could not run ollama: {exc}") from exc
+    if not isinstance(body, dict):
+        raise NamingError(f"unexpected ollama response: {body!r}")
     text = body.get("response")
     if not isinstance(text, str):
         raise NamingError(f"unexpected ollama response: {body!r}")
@@ -230,8 +232,10 @@ def resolve_names(
     if namer == "off":
         return {s: s for s in speakers}
 
-    fn = namer_fn or NAMERS[namer]
+    fn = namer_fn or NAMERS.get(namer)
     try:
+        if fn is None:
+            raise NamingError(f"unknown namer: {namer!r}")
         raw = fn(paragraphs)
         guesses = {s: raw.get(s) for s in speakers}
     except Exception:
