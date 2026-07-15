@@ -32,9 +32,9 @@ def transcribe(
     hf_token = hf_token or os.environ.get("HF_TOKEN")
     if not hf_token:
         raise TranscribeError(
-            "HF_TOKEN is not set. Create a free Hugging Face token, accept the "
-            "pyannote/speaker-diarization model terms, and export HF_TOKEN=... "
-            "(one-time setup)."
+            "HF_TOKEN is not set. Create a free Hugging Face token, accept the terms "
+            "for pyannote/speaker-diarization-community-1 (and pyannote/segmentation-3.0), "
+            "then export HF_TOKEN=... (one-time setup)."
         )
 
     import whisperx  # imported lazily so unit tests and --help stay fast
@@ -52,8 +52,16 @@ def transcribe(
         return_char_alignments=False,
     )
 
-    # whisperX 3.8+: DiarizationPipeline lives in whisperx.diarize and takes token=
-    diarizer = DiarizationPipeline(token=hf_token, device=device)
+    # whisperX 3.8+: DiarizationPipeline lives in whisperx.diarize and takes token=.
+    # Pin the model explicitly so behavior is deterministic across whisperX versions
+    # (its default has drifted). community-1 is the current pyannote pipeline; note that
+    # with pyannote-audio 4.x even the older 3.1 pipeline pulls community-1 components,
+    # so this is the model whose terms the user must accept.
+    diarizer = DiarizationPipeline(
+        model_name="pyannote/speaker-diarization-community-1",
+        token=hf_token,
+        device=device,
+    )
     diarize_segments = diarizer(audio)
     result = whisperx.assign_word_speakers(diarize_segments, result)
 
