@@ -71,6 +71,10 @@ def check_token(token: str) -> CheckResult:
             user = json.loads(body).get("name")
         except (json.JSONDecodeError, AttributeError, UnicodeDecodeError):
             user = None
+        # The response is untrusted: only echo `name` when it's a plain, short
+        # string, so a crafted body can't inject junk into our output.
+        if not isinstance(user, str) or not user.strip() or len(user) > 64:
+            user = None
         return CheckResult(name, True, f"authenticated as {user}" if user else "valid")
     if status == 401:
         return CheckResult(

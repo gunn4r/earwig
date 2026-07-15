@@ -77,6 +77,28 @@ def test_check_token_never_echoes_the_token(monkeypatch):
     assert "hf_supersecret" not in result.detail
 
 
+def test_check_token_unexpected_status(monkeypatch):
+    monkeypatch.setattr(setup_mod, "_http", fake_http(500))
+    result = check_token("hf_abc")
+    assert result.ok is False
+    assert "500" in result.detail
+
+
+def test_check_token_valid_json_wrong_shape(monkeypatch):
+    # A 200 whose body is valid JSON but not an object: .get() raises
+    # AttributeError, which must degrade to a plain "valid", not crash.
+    monkeypatch.setattr(setup_mod, "_http", fake_http(200, b"[1, 2]"))
+    result = check_token("hf_abc")
+    assert result.ok is True
+
+
+def test_check_token_ignores_junk_username(monkeypatch):
+    monkeypatch.setattr(setup_mod, "_http", fake_http(200, b'{"name": {"nested": 1}}'))
+    result = check_token("hf_abc")
+    assert result.ok is True
+    assert "nested" not in result.detail
+
+
 def test_check_gated_access_granted(monkeypatch):
     monkeypatch.setattr(setup_mod, "_http", fake_http(200))
     result = check_gated_access(REPO, "hf_abc")
@@ -97,6 +119,20 @@ def test_check_gated_access_unexpected_status(monkeypatch):
     result = check_gated_access(REPO, "hf_abc")
     assert result.ok is False
     assert "500" in result.detail
+
+
+def test_check_gated_access_401_is_actionable(monkeypatch):
+    monkeypatch.setattr(setup_mod, "_http", fake_http(401))
+    result = check_gated_access(REPO, "hf_abc")
+    assert result.ok is False
+    assert "huggingface.co/settings/tokens" in result.detail
+
+
+def test_check_gated_access_offline_degrades(monkeypatch):
+    monkeypatch.setattr(setup_mod, "_http", raising_http(urllib.error.URLError("down")))
+    result = check_gated_access(REPO, "hf_abc")
+    assert result.ok is False
+    assert "could not reach" in result.detail
 
 
 def test_check_gated_access_uses_head(monkeypatch):
@@ -143,3 +179,10 @@ def test_check_namer_local_unreachable(monkeypatch):
     result = check_namer("local")
     assert result.ok is False
     assert "Ollama" in result.detail
+
+
+def test_check_namer_local_non_200(monkeypatch):
+    monkeypatch.setattr(setup_mod, "_http", fake_http(503))
+    result = check_namer("local")
+    assert result.ok is False
+    assert "503" in result.detail
