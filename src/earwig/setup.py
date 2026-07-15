@@ -209,8 +209,9 @@ def run_setup(
     print(f"Default namer set to '{chosen}'.\n")
 
     print("Checking your setup...\n")
-    results = [check_ffmpeg(), check_token(token)]
-    if results[-1].ok:
+    token_result = check_token(token)
+    results = [check_ffmpeg(), token_result]
+    if token_result.ok:
         # Only probe gating once we know the token itself is good, so a bad
         # token reports one clear failure instead of three confusing ones.
         results.extend(check_gated_access(repo, token) for repo in GATED_REPOS)

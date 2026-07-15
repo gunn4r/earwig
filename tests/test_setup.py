@@ -247,6 +247,33 @@ def test_run_setup_never_prints_the_token(tmp_path, monkeypatch, capsys):
     assert "hf_supersecret" not in capsys.readouterr().out
 
 
+def test_run_setup_never_prints_an_odd_prefixed_token(tmp_path, monkeypatch, capsys):
+    stub_all_checks(monkeypatch)
+    run_setup(
+        namer="heuristic",
+        env_path=tmp_path / "env",
+        open_browser=False,
+        input_fn=make_input([""]),
+        getpass_fn=lambda prompt="": "oddprefix_supersecret",
+    )
+    out = capsys.readouterr().out
+    assert "doesn't look like" in out          # the warning did fire...
+    assert "oddprefix_supersecret" not in out  # ...without echoing the token
+
+
+def test_run_setup_never_prints_an_existing_token(tmp_path, monkeypatch, capsys):
+    stub_all_checks(monkeypatch)
+    monkeypatch.setenv("HF_TOKEN", "hf_existingsecret")
+    run_setup(
+        namer="heuristic",
+        env_path=tmp_path / "env",
+        open_browser=False,
+        input_fn=make_input([""]),
+        getpass_fn=lambda prompt="": "",
+    )
+    assert "hf_existingsecret" not in capsys.readouterr().out
+
+
 def test_run_setup_returns_1_when_a_check_fails(tmp_path, monkeypatch):
     stub_all_checks(monkeypatch, ok=False)
     code = run_setup(
@@ -299,6 +326,25 @@ def test_run_setup_empty_token_keeps_existing_env_token(tmp_path, monkeypatch):
     )
     assert code == 0
     assert "HF_TOKEN" not in env.read_text()  # nothing written; existing token kept
+
+
+def test_run_setup_checks_the_recovered_token(tmp_path, monkeypatch):
+    # An empty entry means "keep the existing token" — that recovered value must
+    # be what we actually verify, not the empty string the user typed.
+    stub_all_checks(monkeypatch)
+    monkeypatch.setenv("HF_TOKEN", "hf_existing")
+    seen = []
+    monkeypatch.setattr(setup_mod, "check_token",
+                        lambda token: seen.append(token) or
+                        CheckResult("Hugging Face token", True, "d"))
+    run_setup(
+        namer="heuristic",
+        env_path=tmp_path / "env",
+        open_browser=False,
+        input_fn=make_input([""]),
+        getpass_fn=lambda prompt="": "",
+    )
+    assert seen == ["hf_existing"]
 
 
 def test_run_setup_skips_gated_checks_when_token_check_fails(tmp_path, monkeypatch):
