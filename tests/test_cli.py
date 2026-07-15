@@ -7,7 +7,39 @@ def test_parse_args_defaults():
     assert args.url == "https://youtu.be/x"
     assert args.auto is False
     assert args.model == "large-v3"
-    assert args.no_naming is False
+    assert args.namer is None
+
+
+def test_parse_args_namer_choice():
+    args = cli.parse_args(["u", "--namer", "off"])
+    assert args.namer == "off"
+
+
+def test_resolve_namer_defaults_to_heuristic(monkeypatch):
+    monkeypatch.delenv("EARWIG_NAMER", raising=False)
+    assert cli._resolve_namer(None) == "heuristic"
+
+
+def test_resolve_namer_reads_env(monkeypatch):
+    monkeypatch.setenv("EARWIG_NAMER", "local")
+    assert cli._resolve_namer(None) == "local"
+
+
+def test_resolve_namer_explicit_flag_beats_env(monkeypatch):
+    monkeypatch.setenv("EARWIG_NAMER", "local")
+    assert cli._resolve_namer("heuristic") == "heuristic"
+
+
+def test_resolve_namer_auto_prefers_claude_when_present(monkeypatch):
+    monkeypatch.delenv("EARWIG_NAMER", raising=False)
+    monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/claude")
+    assert cli._resolve_namer("auto") == "claude"
+
+
+def test_resolve_namer_auto_falls_back_to_heuristic(monkeypatch):
+    monkeypatch.delenv("EARWIG_NAMER", raising=False)
+    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
+    assert cli._resolve_namer("auto") == "heuristic"
 
 
 def test_main_writes_transcript(tmp_path, monkeypatch, capsys):
