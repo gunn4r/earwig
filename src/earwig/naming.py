@@ -187,6 +187,18 @@ def infer_names(
     return parse_mapping(raw, speaker_ids)
 
 
+Namer = Callable[[list[Paragraph]], dict[str, str | None]]
+
+NAMERS: dict[str, Namer] = {
+    "claude": lambda paras: infer_names(paras, runner=_run_claude),
+    "local": lambda paras: infer_names(paras, runner=_run_ollama),
+    "heuristic": heuristic_names,
+}
+
+# "auto" (pick a namer) and "off" (skip naming) are selection policies, not namers.
+NAMER_CHOICES: tuple[str, ...] = ("auto", *NAMERS, "off")
+
+
 def _confirm_mapping(
     speakers: list[str],
     guesses: dict[str, str | None],
@@ -209,17 +221,19 @@ def _confirm_mapping(
 def resolve_names(
     paragraphs: list[Paragraph],
     *,
+    namer: str = "heuristic",
     auto: bool = False,
-    no_naming: bool = False,
-    runner: Callable[[str], str] | None = None,
     prompt_fn: Callable[[str], str] = input,
+    namer_fn: Namer | None = None,
 ) -> dict[str, str]:
     speakers = list(dict.fromkeys(p.speaker for p in paragraphs))
-    if no_naming:
+    if namer == "off":
         return {s: s for s in speakers}
 
+    fn = namer_fn or NAMERS[namer]
     try:
-        guesses = infer_names(paragraphs, runner=runner)
+        raw = fn(paragraphs)
+        guesses = {s: raw.get(s) for s in speakers}
     except Exception:
         guesses = {s: None for s in speakers}
 

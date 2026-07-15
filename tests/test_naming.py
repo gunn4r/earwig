@@ -70,49 +70,57 @@ def test_infer_names_uses_injected_runner():
 
 
 def test_resolve_names_auto_applies_guesses_and_falls_back_for_null():
-    runner = lambda prompt: '{"SPEAKER_00": "Alice", "SPEAKER_01": null}'
-    out = resolve_names(paras(), auto=True, runner=runner)
+    namer_fn = lambda paras: {"SPEAKER_00": "Alice", "SPEAKER_01": None}
+    out = resolve_names(paras(), auto=True, namer_fn=namer_fn)
     assert out == {"SPEAKER_00": "Alice", "SPEAKER_01": "SPEAKER_01"}
 
 
-def test_resolve_names_no_naming_keeps_raw_ids():
-    out = resolve_names(paras(), no_naming=True)
+def test_resolve_names_off_keeps_raw_ids():
+    out = resolve_names(paras(), namer="off")
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
-def test_resolve_names_degrades_when_runner_fails():
-    def boom(prompt):
-        raise NamingError("claude unavailable")
-    # auto=True + failure -> every speaker falls back to raw id, no exception
-    out = resolve_names(paras(), auto=True, runner=boom)
+def test_resolve_names_degrades_when_namer_fails():
+    def boom(paras):
+        raise NamingError("namer unavailable")
+    out = resolve_names(paras(), auto=True, namer_fn=boom)
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
 def test_resolve_names_interactive_prompts_and_overrides():
-    runner = lambda prompt: '{"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}'
-    # user accepts Alice (blank -> guess), overrides Bob -> Bob Smith
+    namer_fn = lambda paras: {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}
     answers = iter(["", "Bob Smith"])
-    out = resolve_names(paras(), runner=runner, prompt_fn=lambda _: next(answers))
+    out = resolve_names(paras(), namer_fn=namer_fn, prompt_fn=lambda _: next(answers))
     assert out == {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob Smith"}
 
 
 def test_resolve_names_auto_degrades_on_value_error():
-    """resolve_names must catch non-NamingError exceptions from runner."""
-    def boom(prompt):
-        raise ValueError("unexpected runner error")
-    # auto=True + non-NamingError exception -> every speaker falls back to raw id, no exception
-    out = resolve_names(paras(), auto=True, runner=boom)
+    """resolve_names must catch non-NamingError exceptions from the namer."""
+    def boom(paras):
+        raise ValueError("unexpected namer error")
+    out = resolve_names(paras(), auto=True, namer_fn=boom)
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
 def test_resolve_names_interactive_degrades_on_value_error():
-    """resolve_names interactive path must catch non-NamingError exceptions and still return names."""
-    def boom(prompt):
-        raise ValueError("unexpected runner error")
-    # interactive path with runner failure -> prompt_fn called, blank input -> falls back to raw id
+    """Interactive path must catch non-NamingError exceptions and still return names."""
+    def boom(paras):
+        raise ValueError("unexpected namer error")
     answers = iter(["", ""])
-    out = resolve_names(paras(), runner=boom, prompt_fn=lambda _: next(answers))
+    out = resolve_names(paras(), namer_fn=boom, prompt_fn=lambda _: next(answers))
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
+
+
+def test_namers_registry_has_concrete_strategies():
+    from earwig.naming import NAMERS, NAMER_CHOICES
+    assert set(NAMERS) == {"claude", "local", "heuristic"}
+    assert NAMER_CHOICES == ("auto", "claude", "local", "heuristic", "off")
+
+
+def test_resolve_names_defaults_to_heuristic():
+    # No namer_fn, no namer arg -> uses the heuristic namer on real text.
+    out = resolve_names(paras(), auto=True)
+    assert out == {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}
 
 
 def test_heuristic_self_introduction():
