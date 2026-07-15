@@ -38,6 +38,7 @@ def transcribe(
         )
 
     import whisperx  # imported lazily so unit tests and --help stay fast
+    from whisperx.diarize import DiarizationPipeline  # moved off top level in whisperX 3.8+
 
     model = whisperx.load_model(model_size, device, compute_type="int8")
     audio = whisperx.load_audio(audio_path)
@@ -51,7 +52,8 @@ def transcribe(
         return_char_alignments=False,
     )
 
-    diarizer = whisperx.DiarizationPipeline(use_auth_token=hf_token, device=device)
+    # whisperX 3.8+: DiarizationPipeline lives in whisperx.diarize and takes token=
+    diarizer = DiarizationPipeline(token=hf_token, device=device)
     diarize_segments = diarizer(audio)
     result = whisperx.assign_word_speakers(diarize_segments, result)
 
