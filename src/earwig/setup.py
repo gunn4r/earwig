@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import getpass
 import json
+import os
 import shutil
 import urllib.error
 import urllib.request
+import webbrowser
+from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
-from .naming import OLLAMA_BASE_URL
+from .config import upsert_env_var, user_config_path
+from .naming import NAMER_CHOICES, OLLAMA_BASE_URL
 
 HF_TOKEN_URL = "https://huggingface.co/settings/tokens"
 GATED_REPOS: tuple[str, ...] = (
@@ -131,3 +137,93 @@ def check_namer(namer: str) -> CheckResult:
             return CheckResult(name, True, f"Ollama reachable at {OLLAMA_BASE_URL}")
         return CheckResult(name, False, f"Ollama responded with HTTP {status}")
     return CheckResult(name, True, "ready (no external dependency)")
+
+
+def _prompt_namer(input_fn: Callable[[str], str]) -> str:
+    choices = ", ".join(NAMER_CHOICES)
+    entry = input_fn(f"Default speaker namer ({choices}) [heuristic]: ").strip()
+    # Mirror cli._resolve_namer: an unrecognized answer degrades to heuristic
+    # rather than erroring out mid-wizard.
+    return entry if entry in NAMER_CHOICES else "heuristic"
+
+
+def _open_pages(input_fn: Callable[[str], str]) -> None:
+    if input_fn("Open these in your browser? [Y/n]: ").strip().lower() == "n":
+        return
+    webbrowser.open(HF_TOKEN_URL)
+    for repo in GATED_REPOS:
+        webbrowser.open(f"https://huggingface.co/{repo}")
+
+
+def _capture_token(env_path: Path, getpass_fn: Callable[[str], str]) -> str:
+    """Prompt for the token and persist it. Returns the token to check against:
+    the freshly entered one, or an existing one from the environment."""
+    token = getpass_fn("Paste your Hugging Face token (input is hidden): ").strip()
+    if not token:
+        existing = os.environ.get("HF_TOKEN", "")
+        print("No token entered — keeping the one already in your environment."
+              if existing else "No token entered.")
+        return existing
+    if not token.startswith("hf_"):
+        print("warning: that doesn't look like a Hugging Face token (they start "
+              "with 'hf_') — saving it anyway.")
+    upsert_env_var(env_path, "HF_TOKEN", token)
+    print(f"Saved your token to {env_path} (not shown here).")
+    return token
+
+
+def run_setup(
+    *,
+    namer: str | None = None,
+    env_path: str | Path | None = None,
+    open_browser: bool = True,
+    input_fn: Callable[[str], str] = input,
+    getpass_fn: Callable[[str], str] = getpass.getpass,
+) -> int:
+    """Walk the user through first-time setup. Returns 0 if every check passed."""
+    env_path = Path(env_path) if env_path is not None else user_config_path()
+
+    print("earwig setup\n")
+    print("earwig needs three things:")
+    print("  1. ffmpeg on your PATH (to extract audio)")
+    print("  2. a free Hugging Face token (for speaker diarization)")
+    print("  3. the licenses accepted for two gated pyannote models\n")
+    print("The pages you need:")
+    print(f"  token: {HF_TOKEN_URL}")
+    for repo in GATED_REPOS:
+        print(f"  model: https://huggingface.co/{repo}")
+    print()
+
+    if open_browser:
+        _open_pages(input_fn)
+
+    input_fn(
+        "Press Enter once you've created your token and clicked 'Agree and "
+        "access repository' on both models... "
+    )
+
+    token = _capture_token(env_path, getpass_fn)
+
+    chosen = namer or _prompt_namer(input_fn)
+    upsert_env_var(env_path, "EARWIG_NAMER", chosen)
+    print(f"Default namer set to '{chosen}'.\n")
+
+    print("Checking your setup...\n")
+    results = [check_ffmpeg(), check_token(token)]
+    if results[-1].ok:
+        # Only probe gating once we know the token itself is good, so a bad
+        # token reports one clear failure instead of three confusing ones.
+        results.extend(check_gated_access(repo, token) for repo in GATED_REPOS)
+    results.append(check_namer(chosen))
+
+    for result in results:
+        mark = "OK  " if result.ok else "FAIL"
+        print(f"  [{mark}] {result.name} — {result.detail}")
+
+    failures = [r for r in results if not r.ok]
+    if failures:
+        print(f"\n{len(failures)} check(s) failed. Fix the items above, then re-run "
+              "`earwig setup`.")
+        return 1
+    print('\nAll checks passed. Try it:\n    earwig "https://youtube.com/watch?v=..."')
+    return 0

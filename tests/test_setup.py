@@ -7,6 +7,7 @@ from earwig.setup import (
     check_gated_access,
     check_namer,
     check_token,
+    run_setup,
 )
 
 REPO = "pyannote/speaker-diarization-community-1"
@@ -186,3 +187,180 @@ def test_check_namer_local_non_200(monkeypatch):
     result = check_namer("local")
     assert result.ok is False
     assert "503" in result.detail
+
+
+def stub_all_checks(monkeypatch, ok=True):
+    """Replace every check with a canned result so we test orchestration only."""
+    monkeypatch.setattr(setup_mod, "check_ffmpeg",
+                        lambda: CheckResult("ffmpeg", ok, "d"))
+    monkeypatch.setattr(setup_mod, "check_token",
+                        lambda token: CheckResult("Hugging Face token", ok, "d"))
+    monkeypatch.setattr(setup_mod, "check_gated_access",
+                        lambda repo, token: CheckResult(repo, ok, "d"))
+    monkeypatch.setattr(setup_mod, "check_namer",
+                        lambda namer: CheckResult(f"namer '{namer}'", ok, "d"))
+
+
+def make_input(answers):
+    """Return an input_fn that pops canned answers in order."""
+    queue = list(answers)
+    return lambda prompt="": queue.pop(0) if queue else ""
+
+
+def test_run_setup_writes_token_and_namer(tmp_path, monkeypatch):
+    stub_all_checks(monkeypatch)
+    env = tmp_path / "env"
+    code = run_setup(
+        namer="heuristic",
+        env_path=env,
+        open_browser=False,
+        input_fn=make_input([""]),
+        getpass_fn=lambda prompt="": "hf_secret",
+    )
+    assert code == 0
+    contents = env.read_text()
+    assert "HF_TOKEN=hf_secret" in contents
+    assert "EARWIG_NAMER=heuristic" in contents
+
+
+def test_run_setup_defaults_to_user_config_path(tmp_path, monkeypatch):
+    stub_all_checks(monkeypatch)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    run_setup(
+        namer="heuristic",
+        open_browser=False,
+        input_fn=make_input([""]),
+        getpass_fn=lambda prompt="": "hf_secret",
+    )
+    assert "HF_TOKEN=hf_secret" in (tmp_path / "earwig" / "env").read_text()
+
+
+def test_run_setup_never_prints_the_token(tmp_path, monkeypatch, capsys):
+    stub_all_checks(monkeypatch)
+    run_setup(
+        namer="heuristic",
+        env_path=tmp_path / "env",
+        open_browser=False,
+        input_fn=make_input([""]),
+        getpass_fn=lambda prompt="": "hf_supersecret",
+    )
+    assert "hf_supersecret" not in capsys.readouterr().out
+
+
+def test_run_setup_returns_1_when_a_check_fails(tmp_path, monkeypatch):
+    stub_all_checks(monkeypatch, ok=False)
+    code = run_setup(
+        namer="heuristic",
+        env_path=tmp_path / "env",
+        open_browser=False,
+        input_fn=make_input([""]),
+        getpass_fn=lambda prompt="": "hf_secret",
+    )
+    assert code == 1
+
+
+def test_run_setup_prompts_for_namer_when_not_given(tmp_path, monkeypatch):
+    stub_all_checks(monkeypatch)
+    env = tmp_path / "env"
+    # answers: press-enter after the links, then the namer choice
+    run_setup(
+        namer=None,
+        env_path=env,
+        open_browser=False,
+        input_fn=make_input(["", "claude"]),
+        getpass_fn=lambda prompt="": "hf_secret",
+    )
+    assert "EARWIG_NAMER=claude" in env.read_text()
+
+
+def test_run_setup_invalid_namer_entry_falls_back_to_heuristic(tmp_path, monkeypatch):
+    stub_all_checks(monkeypatch)
+    env = tmp_path / "env"
+    run_setup(
+        namer=None,
+        env_path=env,
+        open_browser=False,
+        input_fn=make_input(["", "bogus"]),
+        getpass_fn=lambda prompt="": "hf_secret",
+    )
+    assert "EARWIG_NAMER=heuristic" in env.read_text()
+
+
+def test_run_setup_empty_token_keeps_existing_env_token(tmp_path, monkeypatch):
+    stub_all_checks(monkeypatch)
+    monkeypatch.setenv("HF_TOKEN", "hf_existing")
+    env = tmp_path / "env"
+    code = run_setup(
+        namer="heuristic",
+        env_path=env,
+        open_browser=False,
+        input_fn=make_input([""]),
+        getpass_fn=lambda prompt="": "",
+    )
+    assert code == 0
+    assert "HF_TOKEN" not in env.read_text()  # nothing written; existing token kept
+
+
+def test_run_setup_skips_gated_checks_when_token_check_fails(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(setup_mod, "check_ffmpeg",
+                        lambda: CheckResult("ffmpeg", True, "d"))
+    monkeypatch.setattr(setup_mod, "check_token",
+                        lambda token: CheckResult("Hugging Face token", False, "bad"))
+    monkeypatch.setattr(setup_mod, "check_namer",
+                        lambda namer: CheckResult("namer", True, "d"))
+
+    def spy_gated(repo, token):
+        calls.append(repo)
+        return CheckResult(repo, True, "d")
+
+    monkeypatch.setattr(setup_mod, "check_gated_access", spy_gated)
+    run_setup(
+        namer="heuristic",
+        env_path=tmp_path / "env",
+        open_browser=False,
+        input_fn=make_input([""]),
+        getpass_fn=lambda prompt="": "hf_bad",
+    )
+    assert calls == []  # pointless to probe gating with a token we know is bad
+
+
+def test_run_setup_warns_on_odd_token_prefix(tmp_path, monkeypatch, capsys):
+    stub_all_checks(monkeypatch)
+    run_setup(
+        namer="heuristic",
+        env_path=tmp_path / "env",
+        open_browser=False,
+        input_fn=make_input([""]),
+        getpass_fn=lambda prompt="": "not_a_hf_token",
+    )
+    assert "doesn't look like" in capsys.readouterr().out
+
+
+def test_run_setup_opens_browser_when_accepted(tmp_path, monkeypatch):
+    stub_all_checks(monkeypatch)
+    opened = []
+    monkeypatch.setattr(setup_mod.webbrowser, "open", lambda url: opened.append(url))
+    run_setup(
+        namer="heuristic",
+        env_path=tmp_path / "env",
+        open_browser=True,
+        input_fn=make_input(["y", ""]),
+        getpass_fn=lambda prompt="": "hf_secret",
+    )
+    assert setup_mod.HF_TOKEN_URL in opened
+    assert len(opened) == 1 + len(setup_mod.GATED_REPOS)
+
+
+def test_run_setup_respects_browser_decline(tmp_path, monkeypatch):
+    stub_all_checks(monkeypatch)
+    opened = []
+    monkeypatch.setattr(setup_mod.webbrowser, "open", lambda url: opened.append(url))
+    run_setup(
+        namer="heuristic",
+        env_path=tmp_path / "env",
+        open_browser=True,
+        input_fn=make_input(["n", ""]),
+        getpass_fn=lambda prompt="": "hf_secret",
+    )
+    assert opened == []
