@@ -20,3 +20,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/podscribe"]
+
+[tool.pytest.ini_options]
+markers = ["slow: end-to-end tests needing network, ffmpeg, models, and HF_TOKEN"]
+addopts = "-m 'not slow'"
