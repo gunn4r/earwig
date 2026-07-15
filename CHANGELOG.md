@@ -17,7 +17,6 @@ changes bump the **minor** version.
 
 - Remove the `--no-naming` flag. Use `--namer off` to keep the raw `SPEAKER_xx` labels.
 
-
 ## [0.1.0] - 2026-07-14
 
 Initial beta release: turn a YouTube podcast URL into a speaker-labeled Markdown
