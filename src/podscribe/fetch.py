@@ -40,6 +40,8 @@ def fetch(url: str, workdir: str) -> tuple[str, Metadata]:
     except Exception as exc:  # yt-dlp raises many subtypes; surface one clean error
         raise FetchError(f"could not download {url}: {exc}") from exc
 
+    if info is None:  # extract_info can return None rather than raising in rare cases
+        raise FetchError(f"could not extract video info for {url}")
     if not os.path.exists(audio_path):
         raise FetchError("audio extraction failed (is ffmpeg installed?)")
     return audio_path, _metadata_from_info(info)
