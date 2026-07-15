@@ -26,9 +26,33 @@ def to_markdown(
         "---",
         "",
     ]
-    for para in paragraphs:
-        name = speaker_map.get(para.speaker, para.speaker)
-        lines.append(f"**{name}** `[{format_timestamp(para.start)}]`")
-        lines.append(para.text)
+    for block in _merge_same_speaker(paragraphs, speaker_map):
+        lines.append(f"**{block['name']}** `[{format_timestamp(block['start'])}]`")
+        lines.append(block["text"])
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _merge_same_speaker(
+    paragraphs: list[Paragraph],
+    speaker_map: dict[str, str],
+) -> list[dict]:
+    """Group paragraphs into render blocks, coalescing consecutive paragraphs that
+    resolve to the SAME name but came from DIFFERENT speaker IDs.
+
+    This fixes diarization over-splitting one person into several IDs that the user
+    (or Claude) then maps to a single name — they render as one block instead of
+    repeated identical headers. A single ID's own paragraphs (split by pause or
+    max-length in `build_paragraphs`) are left untouched, so that readability guard
+    still holds.
+    """
+    blocks: list[dict] = []
+    prev_id: str | None = None
+    for para in paragraphs:
+        name = speaker_map.get(para.speaker, para.speaker)
+        if blocks and name == blocks[-1]["name"] and para.speaker != prev_id:
+            blocks[-1]["text"] = f"{blocks[-1]['text']} {para.text}"
+        else:
+            blocks.append({"name": name, "start": para.start, "text": para.text})
+        prev_id = para.speaker
+    return blocks

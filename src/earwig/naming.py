@@ -48,7 +48,13 @@ def parse_mapping(raw: str, speaker_ids: Iterable[str]) -> dict[str, str | None]
         data = json.loads(raw[start : end + 1])
     except json.JSONDecodeError as exc:
         raise NamingError(f"invalid JSON from claude: {exc}") from exc
-    return {sid: (data.get(sid) or None) for sid in speaker_ids}
+
+    def clean(value: object) -> str | None:
+        # Only accept a non-empty string as a name; anything else (null, number,
+        # list, empty string) degrades to None so it can't leak into the transcript.
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    return {sid: clean(data.get(sid)) for sid in speaker_ids}
 
 
 def _run_claude(prompt: str) -> str:

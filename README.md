@@ -1,5 +1,8 @@
 # earwig
 
+[![CI](https://github.com/gunn4r/earwig/actions/workflows/ci.yml/badge.svg)](https://github.com/gunn4r/earwig/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > _earwig_ (v.) — to listen in on a conversation.
 
 A local command-line tool that turns a YouTube podcast URL into a **verbatim,

@@ -47,6 +47,18 @@ def test_parse_mapping_raises_without_object():
         parse_mapping("no json here", ["SPEAKER_00"])
 
 
+def test_parse_mapping_rejects_non_string_and_empty_values():
+    raw = '{"SPEAKER_00": 42, "SPEAKER_01": ["a"], "SPEAKER_02": "  ", "SPEAKER_03": "Kyle"}'
+    out = parse_mapping(raw, ["SPEAKER_00", "SPEAKER_01", "SPEAKER_02", "SPEAKER_03"])
+    # numbers, lists, and whitespace-only names degrade to None; real names are kept (trimmed)
+    assert out == {
+        "SPEAKER_00": None,
+        "SPEAKER_01": None,
+        "SPEAKER_02": None,
+        "SPEAKER_03": "Kyle",
+    }
+
+
 def test_infer_names_uses_injected_runner():
     runner = lambda prompt: '{"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}'
     out = infer_names(paras(), runner=runner)
