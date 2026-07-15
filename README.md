@@ -14,17 +14,22 @@ earwig "https://youtube.com/watch?v=..."
 ```
 
 ```markdown
-# The Most Hands-Off Business Anyone Can Copy
-*Some Podcast · 50:53 · [source](https://youtube.com/watch?v=...)*
+# How I Built a $40K/Month Vending Machine Route
+*The Small Bets Podcast · 32:10 · [source](https://youtube.com/watch?v=EXAMPLE)*
 
 ---
 
-**Luke Vandervere** `[00:00]`
-We finished the month 192-5 last month...
+**Dana Alvarez** `[00:00]`
+Welcome back to the show. Today I'm sitting down with someone who turned a
+boring, overlooked business into a genuinely passive income stream...
 
-**Chris Koerner** `[00:34]`
-So over 90% net profit margins. How many hours per week...
+**Marcus Webb** `[00:12]`
+Thanks for having me. The whole thing started because I wanted something that
+didn't need me glued to a laptop all day...
 ```
+
+> The example above is fictional. See [`examples/example-transcript.md`](examples/example-transcript.md)
+> for a fuller synthetic sample of earwig's output.
 
 ## Why
 
