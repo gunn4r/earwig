@@ -121,3 +121,19 @@ def test_upsert_env_var_appends_new_key(tmp_path):
     env.write_text("HF_TOKEN=hf_abc\n")
     upsert_env_var(env, "EARWIG_NAMER", "claude")
     assert env.read_text() == "HF_TOKEN=hf_abc\nEARWIG_NAMER=claude\n"
+
+
+def test_upsert_env_var_collapses_duplicate_keys(tmp_path):
+    env = tmp_path / "env"
+    env.write_text("HF_TOKEN=one\nOTHER=x\nHF_TOKEN=two\n")
+    upsert_env_var(env, "HF_TOKEN", "new")
+    assert env.read_text() == "HF_TOKEN=new\nOTHER=x\n"
+    # the parser must agree with what the writer intended
+    assert parse_env_text(env.read_text())["HF_TOKEN"] == "new"
+
+
+def test_upsert_env_var_preserves_export_prefix(tmp_path):
+    env = tmp_path / "env"
+    env.write_text("export HF_TOKEN=old\n")
+    upsert_env_var(env, "HF_TOKEN", "new")
+    assert env.read_text() == "export HF_TOKEN=new\n"

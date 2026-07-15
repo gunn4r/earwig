@@ -8,6 +8,10 @@ from pathlib import Path
 # lines never match: `#` is not a valid identifier start.
 _PAIR = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 
+# Detects the same leading `export ` that _PAIR tolerates, so a replaced line
+# can preserve it instead of silently dropping it.
+_EXPORT_PREFIX = re.compile(r"^\s*export\s+")
+
 
 def _unquote(value: str) -> str:
     value = value.strip()
@@ -67,6 +71,11 @@ def upsert_env_var(path: str | Path, key: str, value: str) -> None:
 
     Creates the file and any missing parent directories. The file holds
     secrets, so it is always left mode 0600. The value is never printed.
+
+    If `key` appears more than once, the first occurrence is replaced and any
+    later duplicates are dropped. parse_env_text lets the *last* match win
+    when loading, so leaving a stale duplicate in place would make the write
+    appear to succeed while the old value kept silently winning on load.
     """
     file = Path(path)
     try:
@@ -75,14 +84,25 @@ def upsert_env_var(path: str | Path, key: str, value: str) -> None:
         lines = []
 
     replaced = False
-    for i, line in enumerate(lines):
+    new_lines: list[str] = []
+    for line in lines:
         match = _PAIR.match(line)
-        if match and match.group(1) == key and not replaced:
-            lines[i] = f"{key}={value}"
+        if match and match.group(1) == key:
+            if replaced:
+                continue  # drop stale duplicate
+            prefix = "export " if _EXPORT_PREFIX.match(line) else ""
+            new_lines.append(f"{prefix}{key}={value}")
             replaced = True
+        else:
+            new_lines.append(line)
     if not replaced:
-        lines.append(f"{key}={value}")
+        new_lines.append(f"{key}={value}")
 
     file.parent.mkdir(parents=True, exist_ok=True)
-    file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # Create with 0600 from the start: this file holds a token, so it must never
+    # exist, even briefly, at the umask's default permissions. O_CREAT's mode
+    # only applies when the file is new, so keep the chmod for existing files.
+    fd = os.open(file, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(new_lines) + "\n")
     file.chmod(0o600)
