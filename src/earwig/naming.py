@@ -155,7 +155,8 @@ def _run_claude(prompt: str) -> str:
     return result.stdout
 
 
-_OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_BASE_URL = "http://localhost:11434"
+_OLLAMA_URL = f"{OLLAMA_BASE_URL}/api/generate"
 _OLLAMA_MODEL = "llama3.2"
 
 
