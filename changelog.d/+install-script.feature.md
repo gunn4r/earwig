@@ -1,0 +1,1 @@
+Add a one-line installer: `curl -fsSL https://raw.githubusercontent.com/gunn4r/earwig/main/install.sh | sh` installs earwig from git with uv or pipx, warns if `ffmpeg` is missing, and launches `earwig setup`.
