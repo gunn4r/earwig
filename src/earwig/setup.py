@@ -168,11 +168,16 @@ def check_namer(namer: str) -> CheckResult:
 
 
 def _prompt_namer(input_fn: Callable[[str], str]) -> str:
+    # Default to whatever is already configured, so re-running setup and
+    # pressing Enter preserves the user's choice instead of resetting it.
+    current = os.environ.get("EARWIG_NAMER") or "heuristic"
+    if current not in NAMER_CHOICES:
+        current = "heuristic"
     choices = ", ".join(NAMER_CHOICES)
-    entry = _ask(input_fn, f"Default speaker namer ({choices}) [heuristic]: ").strip()
-    # Mirror cli._resolve_namer: an unrecognized answer degrades to heuristic
-    # rather than erroring out mid-wizard.
-    return entry if entry in NAMER_CHOICES else "heuristic"
+    entry = _ask(input_fn, f"Default speaker namer ({choices}) [{current}]: ").strip()
+    # Mirror cli._resolve_namer: an unrecognized answer degrades rather than
+    # erroring out mid-wizard.
+    return entry if entry in NAMER_CHOICES else current
 
 
 def _open_pages(input_fn: Callable[[str], str]) -> None:

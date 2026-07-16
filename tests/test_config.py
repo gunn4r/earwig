@@ -63,37 +63,53 @@ def test_load_dotenv_missing_file_is_noop(tmp_path):
 
 
 def test_load_config_prefers_cwd_env_over_user_config(tmp_path, monkeypatch):
+    # EARWIG_NAMER (not EARWIG_TEST_KEY) because load_config now only loads
+    # earwig's own allowlisted keys — this test checks precedence among
+    # sources, not key filtering.
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     user = tmp_path / "cfg" / "earwig" / "env"
     user.parent.mkdir(parents=True)
-    user.write_text("EARWIG_TEST_KEY=from_user_config\n")
+    user.write_text("EARWIG_NAMER=from_user_config\n")
     cwd = tmp_path / ".env"
-    cwd.write_text("EARWIG_TEST_KEY=from_cwd\n")
-    monkeypatch.delenv("EARWIG_TEST_KEY", raising=False)
+    cwd.write_text("EARWIG_NAMER=from_cwd\n")
+    monkeypatch.delenv("EARWIG_NAMER", raising=False)
     load_config(cwd)
-    assert os.environ["EARWIG_TEST_KEY"] == "from_cwd"
+    assert os.environ["EARWIG_NAMER"] == "from_cwd"
 
 
 def test_load_config_falls_back_to_user_config(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     user = tmp_path / "cfg" / "earwig" / "env"
     user.parent.mkdir(parents=True)
-    user.write_text("EARWIG_TEST_KEY=from_user_config\n")
-    monkeypatch.delenv("EARWIG_TEST_KEY", raising=False)
+    user.write_text("EARWIG_NAMER=from_user_config\n")
+    monkeypatch.delenv("EARWIG_NAMER", raising=False)
     load_config(tmp_path / "missing.env")
-    assert os.environ["EARWIG_TEST_KEY"] == "from_user_config"
+    assert os.environ["EARWIG_NAMER"] == "from_user_config"
 
 
 def test_load_config_real_env_beats_both_files(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     user = tmp_path / "cfg" / "earwig" / "env"
     user.parent.mkdir(parents=True)
-    user.write_text("EARWIG_TEST_KEY=from_user_config\n")
+    user.write_text("EARWIG_NAMER=from_user_config\n")
     cwd = tmp_path / ".env"
-    cwd.write_text("EARWIG_TEST_KEY=from_cwd\n")
-    monkeypatch.setenv("EARWIG_TEST_KEY", "from_shell")
+    cwd.write_text("EARWIG_NAMER=from_cwd\n")
+    monkeypatch.setenv("EARWIG_NAMER", "from_shell")
     load_config(cwd)
-    assert os.environ["EARWIG_TEST_KEY"] == "from_shell"
+    assert os.environ["EARWIG_NAMER"] == "from_shell"
+
+
+def test_load_config_ignores_keys_that_are_not_earwigs(tmp_path, monkeypatch):
+    # A .env in someone's project directory is not ours to import.
+    cwd = tmp_path / ".env"
+    cwd.write_text("AWS_SECRET_ACCESS_KEY=leaked\nLD_PRELOAD=/tmp/evil.so\nHF_TOKEN=hf_ok\n")
+    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("LD_PRELOAD", raising=False)
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    load_config(cwd)
+    assert "AWS_SECRET_ACCESS_KEY" not in os.environ
+    assert "LD_PRELOAD" not in os.environ
+    assert os.environ["HF_TOKEN"] == "hf_ok"  # ours still loads
 
 
 def test_upsert_env_var_creates_file_with_0600(tmp_path):

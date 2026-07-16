@@ -39,18 +39,28 @@ def user_config_path() -> Path:
     return Path(base) / "earwig" / "env"
 
 
-def load_dotenv(path: str | Path) -> None:
+# earwig only needs these. Anything else in a .env belongs to some other tool —
+# earwig runs from arbitrary directories, and injecting a stranger's keys into
+# this process (and the subprocesses and native libs it loads) is not our
+# business.
+EARWIG_KEYS: tuple[str, ...] = ("HF_TOKEN", "EARWIG_NAMER")
+
+
+def load_dotenv(path: str | Path, keys: tuple[str, ...] | None = None) -> None:
     """Load KEY=VALUE pairs from `path` into os.environ.
 
     Only fills in keys that are unset, so whatever is already in the real
     environment wins. A missing or unreadable file is a no-op — these files
-    are optional.
+    are optional. When `keys` is given, only those names are loaded; every
+    other key present in the file is ignored.
     """
     try:
         text = Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return
     for key, value in parse_env_text(text).items():
+        if keys is not None and key not in keys:
+            continue
         os.environ.setdefault(key, value)
 
 
@@ -60,9 +70,13 @@ def load_config(cwd_env: str | Path = ".env") -> None:
     Precedence, highest first: the real environment, ./.env (handy inside a
     checkout), then the per-user config written by `earwig setup`. load_dotenv
     only fills unset keys, so loading in this order produces exactly that.
+    Only earwig's own keys (`EARWIG_KEYS`) are loaded — a `.env` in whatever
+    directory earwig happens to be run from may belong to an unrelated
+    project, and its other keys are not ours to import into the process (and
+    from there into the subprocesses and native libraries earwig loads).
     """
-    load_dotenv(cwd_env)
-    load_dotenv(user_config_path())
+    load_dotenv(cwd_env, keys=EARWIG_KEYS)
+    load_dotenv(user_config_path(), keys=EARWIG_KEYS)
 
 
 def upsert_env_var(path: str | Path, key: str, value: str) -> None:

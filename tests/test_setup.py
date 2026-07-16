@@ -313,6 +313,40 @@ def test_run_setup_invalid_namer_entry_falls_back_to_heuristic(tmp_path, monkeyp
     assert "EARWIG_NAMER=heuristic" in env.read_text()
 
 
+def test_run_setup_keeps_existing_namer_on_empty_answer(tmp_path, monkeypatch):
+    # Re-running setup and pressing Enter must not reset a chosen namer.
+    stub_all_checks(monkeypatch)
+    monkeypatch.setenv("EARWIG_NAMER", "claude")
+    env = tmp_path / "env"
+    run_setup(
+        namer=None,
+        env_path=env,
+        open_browser=False,
+        input_fn=make_input(["", ""]),
+        getpass_fn=lambda prompt="": "hf_secret",
+    )
+    assert "EARWIG_NAMER=claude" in env.read_text()
+
+
+def test_run_setup_closed_stdin_keeps_existing_namer(tmp_path, monkeypatch):
+    # The non-interactive verify path must not rewrite the user's namer.
+    stub_all_checks(monkeypatch)
+    monkeypatch.setenv("EARWIG_NAMER", "local")
+    env = tmp_path / "env"
+
+    def eof(prompt=""):
+        raise EOFError
+
+    run_setup(
+        namer=None,
+        env_path=env,
+        open_browser=False,
+        input_fn=eof,
+        getpass_fn=eof,
+    )
+    assert "EARWIG_NAMER=local" in env.read_text()
+
+
 def test_run_setup_empty_token_keeps_existing_env_token(tmp_path, monkeypatch):
     stub_all_checks(monkeypatch)
     monkeypatch.setenv("HF_TOKEN", "hf_existing")
@@ -415,7 +449,12 @@ def test_run_setup_respects_browser_decline(tmp_path, monkeypatch):
 def test_run_setup_survives_closed_stdin(tmp_path, monkeypatch):
     # `earwig setup </dev/null` must still run the checks and report, not
     # traceback: EOF means "no answer", so every prompt takes its default.
+    # webbrowser.open is patched with a spy (and asserted unopened) so a
+    # regression in the EOF guard can't launch real browser tabs on CI.
     stub_all_checks(monkeypatch)
+    opened = []
+    monkeypatch.setattr(setup_mod.webbrowser, "open", lambda url: opened.append(url))
+
     def eof(prompt=""):
         raise EOFError
 
@@ -429,6 +468,7 @@ def test_run_setup_survives_closed_stdin(tmp_path, monkeypatch):
     )
     assert code == 0
     assert "EARWIG_NAMER=heuristic" in env.read_text()
+    assert opened == []
 
 
 def test_run_setup_closed_stdin_does_not_open_browser(tmp_path, monkeypatch):
