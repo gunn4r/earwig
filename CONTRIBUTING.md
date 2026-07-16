@@ -9,7 +9,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-`ffmpeg` must be on your `PATH`. For the end-to-end test you also need an `HF_TOKEN` (see the README's Setup section).
+`ffmpeg` must be on your `PATH`. For the end-to-end test you also need an `HF_TOKEN` — run `earwig setup` to get one and check your prerequisites, or see the README's Setup section to do it by hand.
 
 ## Running tests
 
@@ -31,9 +31,13 @@ earwig is a one-directional pipeline of small, single-purpose modules under `src
 | `paragraphs` | merge segments into readable, timestamped paragraphs |
 | `naming` | infer speaker names via a pluggable namer (`--namer`), with confirm / `--auto` / graceful degrade |
 | `render` | assemble the Markdown |
+| `config` | read/write the env files that hold settings (`HF_TOKEN`, `EARWIG_NAMER`) |
+| `setup` | the `earwig setup` wizard: token walkthrough plus fast prerequisite checks |
 | `cli` | argument parsing and orchestration |
 
 Each module has a focused unit-test file in `tests/`. Please keep this separation: pure logic that can be tested without the heavy models, and thin IO wrappers around the external tools.
+
+`config` and `setup` follow the same rule as the rest: `setup`'s checks are small functions returning a `CheckResult`, each mockable on its own, and they use only stdlib `urllib`/`shutil` — no whisperX import and no model download, so the fast suite covers them fully. Settings are read with the precedence documented in the README: the environment, then `./.env`, then the per-user config. Only earwig's own keys are loaded from those files.
 
 ## Changelog
 
