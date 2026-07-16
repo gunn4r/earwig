@@ -34,3 +34,9 @@ def test_transcribe_requires_hf_token(monkeypatch):
     monkeypatch.delenv("HF_TOKEN", raising=False)
     with pytest.raises(TranscribeError, match="HF_TOKEN"):
         transcribe("/nonexistent/audio.wav")
+
+
+def test_transcribe_hf_token_error_points_at_setup(monkeypatch):
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    with pytest.raises(TranscribeError, match="earwig setup"):
+        transcribe("/nonexistent/audio.wav")

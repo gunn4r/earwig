@@ -116,3 +116,78 @@ def test_main_interactive_abort_writes_nothing(tmp_path, monkeypatch, capsys):
     assert code == 1
     assert not out.exists()
     assert "Aborted" in capsys.readouterr().err
+
+
+def test_parse_setup_args_defaults():
+    args = cli.parse_setup_args([])
+    assert args.namer is None
+    assert args.no_open_browser is False
+
+
+def test_parse_setup_args_accepts_namer_and_browser_flag():
+    args = cli.parse_setup_args(["--namer", "claude", "--no-open-browser"])
+    assert args.namer == "claude"
+    assert args.no_open_browser is True
+
+
+def test_main_dispatches_setup(monkeypatch):
+    seen = {}
+
+    def fake_run_setup(**kwargs):
+        seen.update(kwargs)
+        return 0
+
+    monkeypatch.setattr(cli, "run_setup", fake_run_setup)
+    assert cli.main(["setup", "--namer", "local"]) == 0
+    assert seen["namer"] == "local"
+    assert seen["open_browser"] is True
+
+
+def test_main_setup_honors_no_open_browser(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(cli, "run_setup", lambda **kw: seen.update(kw) or 0)
+    cli.main(["setup", "--no-open-browser"])
+    assert seen["open_browser"] is False
+
+
+def test_main_setup_propagates_failure_code(monkeypatch):
+    monkeypatch.setattr(cli, "run_setup", lambda **kw: 1)
+    assert cli.main(["setup"]) == 1
+
+
+def test_main_setup_does_not_transcribe(monkeypatch):
+    monkeypatch.setattr(cli, "run_setup", lambda **kw: 0)
+
+    def explode(*a, **kw):
+        raise AssertionError("transcribe path must not run for `earwig setup`")
+
+    monkeypatch.setattr(cli, "fetch", explode)
+    assert cli.main(["setup"]) == 0
+
+
+def test_main_setup_reports_unwritable_config(monkeypatch, capsys):
+    def boom(**kwargs):
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(cli, "run_setup", boom)
+    assert cli.main(["setup"]) == 1
+    err = capsys.readouterr().err
+    assert "error: setup failed:" in err
+    assert "read-only file system" in err
+
+
+def test_main_setup_handles_interrupt(monkeypatch, capsys):
+    def boom(**kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "run_setup", boom)
+    assert cli.main(["setup"]) == 1
+    assert "cancelled" in capsys.readouterr().err.lower()
+
+
+def test_main_loads_config(monkeypatch):
+    called = []
+    monkeypatch.setattr(cli, "load_config", lambda: called.append(True))
+    monkeypatch.setattr(cli, "run_setup", lambda **kw: 0)
+    cli.main(["setup"])
+    assert called == [True]

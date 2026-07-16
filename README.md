@@ -76,14 +76,31 @@ YouTube URL
 
 ## Setup (one time)
 
-Speaker diarization uses gated Hugging Face models. Create a free [Hugging Face token](https://huggingface.co/settings/tokens), then click "Agree and access repository" on both:
+Run the setup wizard — it explains what's needed, opens the right pages, stores your token, and verifies everything:
+
+    earwig setup
+
+It walks you through creating a free [Hugging Face token](https://huggingface.co/settings/tokens) and accepting the licenses for the two gated models that speaker diarization needs, saves the token to `~/.config/earwig/env` (mode `0600`, never printed), records your default speaker namer, and then checks that `ffmpeg` is installed, your token works, both model licenses are accepted, and your namer is available. Every failed check tells you exactly what to do about it.
+
+`earwig setup --namer heuristic` skips the namer question, and `--no-open-browser` stops it from opening pages for you.
+
+### Where settings live
+
+earwig reads settings from, in order of precedence: the environment, a `.env` file in the current directory, then `~/.config/earwig/env` (or `$XDG_CONFIG_HOME/earwig/env`). `earwig setup` writes the last one, so an installed `earwig` works from any directory; a `.env` in a checkout is handy for development and overrides it.
+
+### Doing it by hand
+
+If you'd rather not use the wizard: create a [Hugging Face token](https://huggingface.co/settings/tokens), click "Agree and access repository" on both
 
 - https://huggingface.co/pyannote/speaker-diarization-community-1
 - https://huggingface.co/pyannote/segmentation-3.0
 
-Then make the token available (export it, or put `HF_TOKEN=hf_...` in a `.env` file in the project root):
+then either export the token or put it in one of the files above:
 
     export HF_TOKEN=hf_...
+    # or: echo 'HF_TOKEN=hf_...' >> .env
+
+`ffmpeg` must also be on your `PATH` (macOS: `brew install ffmpeg`; Debian/Ubuntu: `sudo apt install ffmpeg`).
 
 ## Usage
 
@@ -109,7 +126,7 @@ earwig ships four speaker-naming strategies plus an `auto` selection mode, selec
 - **`off`** — skip naming entirely and keep the raw `SPEAKER_xx` labels non-interactively.
 - **`auto`** — use `claude` if the Claude CLI is installed, otherwise fall back to `heuristic`.
 
-If `--namer` is omitted, earwig checks the `EARWIG_NAMER` environment variable, then falls back to `heuristic`. Both `claude` and `local` degrade gracefully to raw speaker ids if the underlying service is unavailable at runtime — they never crash the run. A future `earwig setup` command will let you choose and persist a default namer instead of setting `EARWIG_NAMER` by hand.
+If `--namer` is omitted, earwig checks the `EARWIG_NAMER` environment variable, then falls back to `heuristic`. Both `claude` and `local` degrade gracefully to raw speaker ids if the underlying service is unavailable at runtime — they never crash the run. `earwig setup` records your choice for you, so you don't have to set `EARWIG_NAMER` by hand.
 
 ## Troubleshooting
 
