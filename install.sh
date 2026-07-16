@@ -65,8 +65,8 @@ build_install_cmd() {
 resolve_earwig() {
 	if command -v earwig >/dev/null 2>&1; then
 		command -v earwig
-	elif [ -x "${HOME}/.local/bin/earwig" ]; then
-		echo "${HOME}/.local/bin/earwig"
+	elif [ -x "${HOME:-}/.local/bin/earwig" ]; then
+		echo "${HOME:-}/.local/bin/earwig"
 	fi
 	return 0 # always succeed: empty output means "not found", not an error
 }

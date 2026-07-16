@@ -159,6 +159,20 @@ def test_resolve_earwig_empty_when_absent(tmp_path):
     assert _source("resolve_earwig", b).stdout.strip() == ""
 
 
+def test_resolve_earwig_no_crash_when_home_unset(tmp_path):
+    # curl | sh can run in a shell with no HOME (minimal containers/CI). Under
+    # set -u that must not crash — resolve just yields empty.
+    b = _bindir(tmp_path)
+    env = {"PATH": str(b), "EARWIG_INSTALL_LIB": "1"}  # deliberately no HOME
+    r = subprocess.run(
+        ["/bin/sh", "-c", f". '{INSTALL_SH}'; resolve_earwig"],
+        capture_output=True, text=True, env=env,
+    )
+    assert r.returncode == 0
+    assert r.stdout.strip() == ""
+    assert "parameter not set" not in r.stderr.lower()
+
+
 # --- main (execute the script; main runs because EARWIG_INSTALL_LIB is unset) ---
 
 def _run(bindir, **extra):
