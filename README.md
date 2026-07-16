@@ -80,7 +80,7 @@ It's safe to re-run (it upgrades in place) and never uses `sudo`. On a machine w
 
 Prefer to run it yourself? Install straight from git:
 
-    uv tool install git+https://github.com/gunn4r/earwig     # or: pipx install git+https://github.com/gunn4r/earwig
+    uv tool install git+https://github.com/gunn4r/earwig@main     # or: pipx install git+https://github.com/gunn4r/earwig@main
 
 (From a local checkout, `uv tool install .` works too.)
 

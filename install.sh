@@ -95,7 +95,10 @@ run_setup() {
 	# otherwise (CI, or EARWIG_NO_SETUP) just print the next step.
 	if [ -z "${EARWIG_NO_SETUP:-}" ] && [ -r /dev/tty ]; then
 		echo "Running earwig setup..."
-		"$earwig_bin" setup </dev/tty
+		# Setup returns non-zero when a check isn't green yet (no token, licenses
+		# not accepted) — a normal first run. The install still succeeded, so
+		# don't let that fail the installer; setup prints its own guidance.
+		"$earwig_bin" setup </dev/tty || true
 	else
 		echo ""
 		echo "earwig is installed. Next step:"
