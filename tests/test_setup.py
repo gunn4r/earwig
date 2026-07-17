@@ -150,8 +150,8 @@ def test_check_gated_access_uses_head(monkeypatch):
     assert REPO in seen["url"]
 
 
-def test_check_namer_heuristic_always_ok():
-    assert check_namer("heuristic").ok is True
+def test_check_namer_manual_always_ok():
+    assert check_namer("manual").ok is True
 
 
 def test_check_namer_off_always_ok():
@@ -211,7 +211,7 @@ def test_run_setup_writes_token_and_namer(tmp_path, monkeypatch):
     stub_all_checks(monkeypatch)
     env = tmp_path / "env"
     code = run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=env,
         open_browser=False,
         input_fn=make_input([""]),
@@ -220,14 +220,14 @@ def test_run_setup_writes_token_and_namer(tmp_path, monkeypatch):
     assert code == 0
     contents = env.read_text()
     assert "HF_TOKEN=hf_secret" in contents
-    assert "EARWIG_NAMER=heuristic" in contents
+    assert "EARWIG_NAMER=off" in contents
 
 
 def test_run_setup_defaults_to_user_config_path(tmp_path, monkeypatch):
     stub_all_checks(monkeypatch)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     run_setup(
-        namer="heuristic",
+        namer="off",
         open_browser=False,
         input_fn=make_input([""]),
         getpass_fn=lambda prompt="": "hf_secret",
@@ -238,7 +238,7 @@ def test_run_setup_defaults_to_user_config_path(tmp_path, monkeypatch):
 def test_run_setup_never_prints_the_token(tmp_path, monkeypatch, capsys):
     stub_all_checks(monkeypatch)
     run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=tmp_path / "env",
         open_browser=False,
         input_fn=make_input([""]),
@@ -250,7 +250,7 @@ def test_run_setup_never_prints_the_token(tmp_path, monkeypatch, capsys):
 def test_run_setup_never_prints_an_odd_prefixed_token(tmp_path, monkeypatch, capsys):
     stub_all_checks(monkeypatch)
     run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=tmp_path / "env",
         open_browser=False,
         input_fn=make_input([""]),
@@ -265,7 +265,7 @@ def test_run_setup_never_prints_an_existing_token(tmp_path, monkeypatch, capsys)
     stub_all_checks(monkeypatch)
     monkeypatch.setenv("HF_TOKEN", "hf_existingsecret")
     run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=tmp_path / "env",
         open_browser=False,
         input_fn=make_input([""]),
@@ -277,7 +277,7 @@ def test_run_setup_never_prints_an_existing_token(tmp_path, monkeypatch, capsys)
 def test_run_setup_returns_1_when_a_check_fails(tmp_path, monkeypatch):
     stub_all_checks(monkeypatch, ok=False)
     code = run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=tmp_path / "env",
         open_browser=False,
         input_fn=make_input([""]),
@@ -300,7 +300,7 @@ def test_run_setup_prompts_for_namer_when_not_given(tmp_path, monkeypatch):
     assert "EARWIG_NAMER=claude" in env.read_text()
 
 
-def test_run_setup_invalid_namer_entry_falls_back_to_heuristic(tmp_path, monkeypatch):
+def test_run_setup_invalid_namer_entry_falls_back_to_off(tmp_path, monkeypatch):
     stub_all_checks(monkeypatch)
     env = tmp_path / "env"
     run_setup(
@@ -310,7 +310,7 @@ def test_run_setup_invalid_namer_entry_falls_back_to_heuristic(tmp_path, monkeyp
         input_fn=make_input(["", "bogus"]),
         getpass_fn=lambda prompt="": "hf_secret",
     )
-    assert "EARWIG_NAMER=heuristic" in env.read_text()
+    assert "EARWIG_NAMER=off" in env.read_text()
 
 
 def test_run_setup_keeps_existing_namer_on_empty_answer(tmp_path, monkeypatch):
@@ -352,7 +352,7 @@ def test_run_setup_empty_token_keeps_existing_env_token(tmp_path, monkeypatch):
     monkeypatch.setenv("HF_TOKEN", "hf_existing")
     env = tmp_path / "env"
     code = run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=env,
         open_browser=False,
         input_fn=make_input([""]),
@@ -372,7 +372,7 @@ def test_run_setup_checks_the_recovered_token(tmp_path, monkeypatch):
                         lambda token: seen.append(token) or
                         CheckResult("Hugging Face token", True, "d"))
     run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=tmp_path / "env",
         open_browser=False,
         input_fn=make_input([""]),
@@ -396,7 +396,7 @@ def test_run_setup_skips_gated_checks_when_token_check_fails(tmp_path, monkeypat
 
     monkeypatch.setattr(setup_mod, "check_gated_access", spy_gated)
     run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=tmp_path / "env",
         open_browser=False,
         input_fn=make_input([""]),
@@ -408,7 +408,7 @@ def test_run_setup_skips_gated_checks_when_token_check_fails(tmp_path, monkeypat
 def test_run_setup_warns_on_odd_token_prefix(tmp_path, monkeypatch, capsys):
     stub_all_checks(monkeypatch)
     run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=tmp_path / "env",
         open_browser=False,
         input_fn=make_input([""]),
@@ -422,7 +422,7 @@ def test_run_setup_opens_browser_when_accepted(tmp_path, monkeypatch):
     opened = []
     monkeypatch.setattr(setup_mod.webbrowser, "open", lambda url: opened.append(url))
     run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=tmp_path / "env",
         open_browser=True,
         input_fn=make_input(["y", ""]),
@@ -437,7 +437,7 @@ def test_run_setup_respects_browser_decline(tmp_path, monkeypatch):
     opened = []
     monkeypatch.setattr(setup_mod.webbrowser, "open", lambda url: opened.append(url))
     run_setup(
-        namer="heuristic",
+        namer="off",
         env_path=tmp_path / "env",
         open_browser=True,
         input_fn=make_input(["n", ""]),
@@ -467,7 +467,7 @@ def test_run_setup_survives_closed_stdin(tmp_path, monkeypatch):
         getpass_fn=eof,
     )
     assert code == 0
-    assert "EARWIG_NAMER=heuristic" in env.read_text()
+    assert "EARWIG_NAMER=off" in env.read_text()
     assert opened == []
 
 

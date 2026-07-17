@@ -9,7 +9,6 @@ from earwig.naming import (
     parse_mapping,
     infer_names,
     resolve_names,
-    heuristic_names,
     _run_ollama,
 )
 
@@ -111,10 +110,10 @@ def test_resolve_names_interactive_degrades_on_value_error():
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
-def test_namers_registry_has_concrete_strategies():
+def test_namers_registry_and_choices():
     from earwig.naming import NAMERS, NAMER_CHOICES
-    assert set(NAMERS) == {"claude", "local", "heuristic"}
-    assert NAMER_CHOICES == ("auto", "claude", "local", "heuristic", "off")
+    assert set(NAMERS) == {"claude", "local"}
+    assert NAMER_CHOICES == ("off", "manual", "claude", "local")
 
 
 def test_resolve_names_unknown_namer_degrades_to_raw_ids():
@@ -124,61 +123,35 @@ def test_resolve_names_unknown_namer_degrades_to_raw_ids():
     assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
-def test_resolve_names_defaults_to_heuristic():
-    # No namer_fn, no namer arg -> uses the heuristic namer on real text.
-    out = resolve_names(paras(), auto=True)
-    assert out == {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}
+def test_resolve_names_defaults_to_off():
+    # No namer arg -> off -> raw ids, no inference, no prompts.
+    called = False
+    def prompt(_):
+        nonlocal called
+        called = True
+        return ""
+    out = resolve_names(paras(), prompt_fn=prompt)
+    assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
+    assert called is False
 
 
-def test_heuristic_self_introduction():
-    p = [
-        Paragraph(speaker="SPEAKER_00", start=0.0, text="Welcome, I'm Alice."),
-        Paragraph(speaker="SPEAKER_01", start=5.0, text="Thanks Alice, I'm Bob."),
-    ]
-    assert heuristic_names(p) == {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}
+def test_resolve_names_manual_prompts_for_each_speaker():
+    answers = iter(["Alice", "Bob Smith"])
+    out = resolve_names(paras(), namer="manual", prompt_fn=lambda _: next(answers))
+    assert out == {"SPEAKER_00": "Alice", "SPEAKER_01": "Bob Smith"}
 
 
-def test_heuristic_my_name_is_and_here():
-    p = [
-        Paragraph(speaker="SPEAKER_00", start=0.0, text="My name is Sarah Chen."),
-        Paragraph(speaker="SPEAKER_01", start=5.0, text="Dave here, good to be on."),
-    ]
-    assert heuristic_names(p) == {"SPEAKER_00": "Sarah Chen", "SPEAKER_01": "Dave"}
+def test_resolve_names_manual_empty_entry_keeps_raw_id():
+    out = resolve_names(paras(), namer="manual", prompt_fn=lambda _: "")
+    assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
-def test_heuristic_guest_intro_maps_to_next_speaker():
-    p = [
-        Paragraph(speaker="SPEAKER_00", start=0.0, text="Today I'm joined by Marcus."),
-        Paragraph(speaker="SPEAKER_01", start=5.0, text="Great to be here."),
-    ]
-    assert heuristic_names(p) == {"SPEAKER_00": None, "SPEAKER_01": "Marcus"}
-
-
-def test_heuristic_no_match_returns_none():
-    p = [
-        Paragraph(speaker="SPEAKER_00", start=0.0, text="So anyway, the weather was nice."),
-        Paragraph(speaker="SPEAKER_01", start=5.0, text="Yeah, totally."),
-    ]
-    assert heuristic_names(p) == {"SPEAKER_00": None, "SPEAKER_01": None}
-
-
-def test_heuristic_rejects_capitalized_non_names():
-    # "I'm Great" must not become the name "Great"; sentence-initial "So" is not a name.
-    p = [
-        Paragraph(speaker="SPEAKER_00", start=0.0, text="I'm Great, thanks for asking."),
-        Paragraph(speaker="SPEAKER_01", start=5.0, text="So, where were we?"),
-    ]
-    assert heuristic_names(p) == {"SPEAKER_00": None, "SPEAKER_01": None}
-
-
-def test_heuristic_self_intro_wins_over_later_mention():
-    p = [
-        Paragraph(speaker="SPEAKER_00", start=0.0, text="I'm Alice."),
-        Paragraph(speaker="SPEAKER_01", start=5.0, text="I'm joined by Alice's twin."),
-    ]
-    # SPEAKER_00 keeps Alice; the "joined by" does not overwrite an existing name.
-    out = heuristic_names(p)
-    assert out["SPEAKER_00"] == "Alice"
+def test_resolve_names_manual_with_auto_degrades_to_raw_ids():
+    # manual has no guesses to apply; --auto (non-interactive) must not prompt.
+    def prompt(_):
+        raise AssertionError("must not prompt when auto=True")
+    out = resolve_names(paras(), namer="manual", auto=True, prompt_fn=prompt)
+    assert out == {"SPEAKER_00": "SPEAKER_00", "SPEAKER_01": "SPEAKER_01"}
 
 
 class _FakeResp:

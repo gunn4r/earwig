@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import urllib.error
 import urllib.request
@@ -19,85 +18,6 @@ def collect_speaker_samples(paragraphs: list[Paragraph]) -> dict[str, str]:
         if text and para.speaker not in samples:
             samples[para.speaker] = text[:_SAMPLE_LEN]
     return samples
-
-
-# Capitalized non-names that a trigger phrase can accidentally capture.
-_STOPWORDS = {
-    "I", "So", "Well", "Thanks", "Thank", "Welcome", "Okay", "Ok", "Yeah",
-    "Yes", "No", "Here", "Joined", "Great", "Good", "Fine", "Sorry", "Glad",
-    "Happy", "Excited", "Going", "Just", "Really", "Not", "Doing", "Today",
-    "Back", "Please", "Guest", "Sure", "Right", "Nice",
-}
-
-# Trigger phrases where the speaker names THEMSELVES -> attribute to that speaker.
-_SELF_TRIGGERS = re.compile(
-    r"\b(?:my name'?s?(?: is)?|i'?m|i am|this is)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)",
-    re.IGNORECASE,
-)
-_HERE_TRIGGER = re.compile(r"\b([A-Za-z]+)\s+here\b", re.IGNORECASE)
-
-# Trigger phrases where the speaker names SOMEONE ELSE (a guest) or addresses
-# them -> attribute to the next paragraph spoken by a different speaker.
-_OTHER_TRIGGERS = re.compile(
-    r"\b(?:joined by|welcome(?: back)?|please welcome|my guest(?: today)? is|here'?s)"
-    r"\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)",
-    re.IGNORECASE,
-)
-_ADDRESS_TRIGGER = re.compile(r"^([A-Za-z]+),")  # "Marcus, what do you think?"
-
-
-def _clean_name(raw: str) -> str | None:
-    # A name is one or two Titlecase tokens, none of them a stopword.
-    parts = raw.split()
-    if not (1 <= len(parts) <= 2):
-        return None
-    if not all(p[:1].isupper() and p[1:].islower() and len(p) > 1 for p in parts):
-        return None
-    if any(p in _STOPWORDS for p in parts):
-        return None
-    return " ".join(parts)
-
-
-def _self_name(text: str) -> str | None:
-    m = _SELF_TRIGGERS.search(text)
-    if m:
-        name = _clean_name(m.group(1))
-        if name:
-            return name
-    m = _HERE_TRIGGER.search(text)
-    if m:
-        return _clean_name(m.group(1))
-    return None
-
-
-def heuristic_names(paragraphs: list[Paragraph]) -> dict[str, str | None]:
-    """Infer speaker names from explicit self-introductions and guest intros.
-
-    Zero-dependency, offline fallback namer. Lower accuracy than an LLM: it only
-    catches names stated in a recognizable pattern. Unmatched speakers map to None.
-    """
-    names: dict[str, str] = {}
-    order = list(dict.fromkeys(p.speaker for p in paragraphs))
-
-    def assign_to_next_other(index: int, speaker: str, name: str) -> None:
-        for nxt in paragraphs[index + 1:]:
-            if nxt.speaker != speaker:
-                names.setdefault(nxt.speaker, name)  # never overwrite a self-intro
-                return
-
-    for i, para in enumerate(paragraphs):
-        if para.speaker not in names:
-            name = _self_name(para.text)
-            if name:
-                names[para.speaker] = name
-        for regex in (_OTHER_TRIGGERS, _ADDRESS_TRIGGER):
-            m = regex.search(para.text)
-            if m:
-                other = _clean_name(m.group(1))
-                if other:
-                    assign_to_next_other(i, para.speaker, other)
-
-    return {sid: names.get(sid) for sid in order}
 
 
 def build_prompt(paragraphs: list[Paragraph], head_seconds: float = 180.0) -> str:
@@ -195,11 +115,11 @@ Namer = Callable[[list[Paragraph]], dict[str, str | None]]
 NAMERS: dict[str, Namer] = {
     "claude": lambda paras: infer_names(paras, runner=_run_claude),
     "local": lambda paras: infer_names(paras, runner=_run_ollama),
-    "heuristic": heuristic_names,
 }
 
-# "auto" (pick a namer) and "off" (skip naming) are selection policies, not namers.
-NAMER_CHOICES: tuple[str, ...] = ("auto", *NAMERS, "off")
+# "off" (skip naming) and "manual" (interactive entry, no inference) are
+# selection policies, not namers.
+NAMER_CHOICES: tuple[str, ...] = ("off", "manual", *NAMERS)
 
 
 def _confirm_mapping(
@@ -224,23 +144,30 @@ def _confirm_mapping(
 def resolve_names(
     paragraphs: list[Paragraph],
     *,
-    namer: str = "heuristic",
+    namer: str = "off",
     auto: bool = False,
     prompt_fn: Callable[[str], str] = input,
     namer_fn: Namer | None = None,
 ) -> dict[str, str]:
     speakers = list(dict.fromkeys(p.speaker for p in paragraphs))
-    if namer == "off":
+    # An injected namer_fn always wins over the "off"/"manual" policies (it is
+    # the test/override seam); only honor those policies when none is given.
+    if namer_fn is None and namer == "off":
         return {s: s for s in speakers}
 
-    fn = namer_fn or NAMERS.get(namer)
-    try:
-        if fn is None:
-            raise NamingError(f"unknown namer: {namer!r}")
-        raw = fn(paragraphs)
-        guesses = {s: raw.get(s) for s in speakers}
-    except Exception:
-        guesses = {s: None for s in speakers}
+    if namer_fn is None and namer == "manual":
+        # No inference: leave every guess empty and let the confirm step (or
+        # --auto's raw-id fallback) supply the names.
+        guesses: dict[str, str | None] = {s: None for s in speakers}
+    else:
+        fn = namer_fn or NAMERS.get(namer)
+        try:
+            if fn is None:
+                raise NamingError(f"unknown namer: {namer!r}")
+            raw = fn(paragraphs)
+            guesses = {s: raw.get(s) for s in speakers}
+        except Exception:
+            guesses = {s: None for s in speakers}
 
     if auto:
         return {s: (guesses.get(s) or s) for s in speakers}
