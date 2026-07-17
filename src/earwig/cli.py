@@ -111,7 +111,7 @@ def main(argv: list[str] | None = None) -> int:
             if input("Write transcript? [Y/n]: ").strip().lower() == "n":
                 print("Aborted.", file=sys.stderr)
                 return 1
-        elif all(name == sid for sid, name in speaker_map.items()):
+        elif speaker_map and all(name == sid for sid, name in speaker_map.items()):
             # Non-interactive run that produced no labels (default off, or a
             # degraded LLM run) -- point the user at the naming options.
             print(

@@ -56,6 +56,19 @@ def test_main_unlabeled_speakers_prints_hint(tmp_path, monkeypatch, capsys):
     assert "--namer claude" in capsys.readouterr().err
 
 
+def test_main_no_speakers_does_not_print_hint(tmp_path, monkeypatch, capsys):
+    # An empty speaker map (zero-speaker transcript) must NOT misfire the hint.
+    out = tmp_path / "t.md"
+    meta = Metadata(title="T", channel="C", duration_seconds=60, url="u")
+    monkeypatch.setattr(cli, "fetch", lambda url, workdir: ("/fake/a.wav", meta))
+    monkeypatch.setattr(cli, "transcribe",
+                        lambda audio, model_size: [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")])
+    monkeypatch.setattr(cli, "resolve_names", lambda paras, **kw: {})
+    code = cli.main(["u", "--namer", "off", "--output", str(out)])
+    assert code == 0
+    assert "SPEAKER_xx" not in capsys.readouterr().err
+
+
 def test_main_writes_transcript(tmp_path, monkeypatch, capsys):
     out = tmp_path / "episode.md"
     meta = Metadata(title="Ep", channel="Pod", duration_seconds=60, url="u")
