@@ -45,9 +45,9 @@ Most transcript tools give you an undifferentiated wall of text. earwig is built
 
 ## Features
 
-- **Runs locally.** Audio download, transcription, and speaker diarization all happen on your machine. The default speaker namer (`heuristic`) is a zero-dependency, offline regex matcher — no network call at all. The optional `claude` and `local` namers send only a small text slice (never the audio) to `claude -p` or a local Ollama server, respectively.
+- **Runs locally.** Audio download, transcription, and speaker diarization all happen on your machine. Speaker naming is off by default (no network call at all). The optional `claude` and `local` namers send only a small text slice (never the audio) to `claude -p` or a local Ollama server, respectively.
 - **Speaker diarization** via [whisperX](https://github.com/m-bain/whisperX) + `pyannote`.
-- **Automatic speaker naming.** A pluggable namer guesses real names from intros and context — the built-in `heuristic` namer by default, or the optional `claude`/`local` LLM namers for better accuracy. You review and correct names before anything is written (or `--auto` to skip the review).
+- **Opt-in speaker naming.** By default speakers keep their anonymous `SPEAKER_xx` labels. Opt into names with `--namer manual` (type them yourself as you review) or the `claude`/`local` LLM namers, which infer names from intros and context. You review and correct names before anything is written (or `--auto` to skip the review).
 - **Verbatim output.** Transcript text is never paraphrased — only speaker labels change.
 - **Per-paragraph timestamps** you can seek to.
 
@@ -58,8 +58,8 @@ YouTube URL
   → yt-dlp            download audio + metadata
   → whisperX          transcribe + word timestamps + speaker diarization (SPEAKER_00/01/…)
   → merge             group segments into readable, timestamped paragraphs
-  → namer             infer real names for the anonymous speakers (heuristic default;
-                       claude/local optional; review or --auto)
+  → namer             optionally label the anonymous speakers (off by default;
+                       manual/claude/local opt-in; review or --auto)
   → render            write speaker-labeled Markdown
 ```
 
@@ -68,7 +68,7 @@ YouTube URL
 - **Python 3.11+**
 - **ffmpeg** on your `PATH` (`brew install ffmpeg` / `apt install ffmpeg`)
 - A **Hugging Face token** (free) for the gated diarization models — see Setup
-- Nothing else for speaker naming — the default `heuristic` namer is bundled and offline. Optionally, the **Claude CLI** (`claude`) on your `PATH` enables `--namer claude`, and a local [Ollama](https://ollama.com) server on `localhost:11434` enables `--namer local`. See [Speaker naming](#speaker-naming).
+- Nothing else for speaker naming — it's off by default, and `--namer manual` (type names yourself) needs no dependencies. Optionally, the **Claude CLI** (`claude`) on your `PATH` enables `--namer claude`, and a local [Ollama](https://ollama.com) server on `localhost:11434` enables `--namer local`. See [Speaker naming](#speaker-naming).
 
 ## Install
 
@@ -92,7 +92,7 @@ Run the setup wizard — it explains what's needed, opens the right pages, store
 
 It walks you through creating a free [Hugging Face token](https://huggingface.co/settings/tokens) and accepting the licenses for the two gated models that speaker diarization needs, saves the token to `~/.config/earwig/env` (mode `0600`, never printed), records your default speaker namer, and then checks that `ffmpeg` is installed, your token works, both model licenses are accepted, and your namer is available. Every failed check tells you exactly what to do about it.
 
-`earwig setup --namer heuristic` skips the namer question, and `--no-open-browser` stops it from opening pages for you.
+`earwig setup --namer off` skips the namer question, and `--no-open-browser` stops it from opening pages for you.
 
 ### Where settings live
 
@@ -114,35 +114,36 @@ then either export the token or put it in one of the files above:
 
 ## Usage
 
-    earwig "https://youtube.com/watch?v=..."      # review speaker names, then writes .md
-    earwig "<url>" --auto                          # skip the review step
-    earwig "<url>" --namer off                     # keep raw SPEAKER_xx labels
-    earwig "<url>" --namer heuristic               # zero-dependency regex namer (default)
-    earwig "<url>" --namer claude                  # use the Claude CLI to guess names
-    earwig "<url>" --namer local                   # use a local Ollama model to guess names
+    earwig "https://youtube.com/watch?v=..."      # default: raw SPEAKER_xx labels, writes .md
+    earwig "<url>" --namer manual                  # type each speaker's name as you review
+    earwig "<url>" --namer claude                  # use the Claude CLI to infer names
+    earwig "<url>" --namer local                   # use a local Ollama model to infer names
+    earwig "<url>" --namer claude --auto           # infer names, skip the review step
+    earwig "<url>" --namer off                     # explicit no-naming (same as default)
     earwig "<url>" --model medium --output ep.md   # faster model, explicit output path
 
-In the default (review) mode, earwig shows a sample line for each detected speaker and the namer's guessed name; press Enter to accept or type a correction. Assigning the same name to two speaker IDs merges them — handy when diarization over-splits a speaker.
+By default earwig writes the transcript non-interactively with anonymous `SPEAKER_xx` labels. When you opt into a namer (`manual`, `claude`, or `local`), review mode shows a sample line for each detected speaker and its guessed name; press Enter to accept or type a correction (add `--auto` to skip the review). Assigning the same name to two speaker IDs merges them — handy when diarization over-splits a speaker.
 
 The default model is `large-v3` (most accurate, slow on CPU). Use `--model base` or `--model medium` for much faster runs at some cost to transcription quality. A GPU helps a lot for the larger models.
 
 ## Speaker naming
 
-earwig ships four speaker-naming strategies plus an `auto` selection mode, selected with `--namer {auto,claude,local,heuristic,off}`:
+Naming is opt-in. earwig selects a strategy with `--namer {off,manual,claude,local}`:
 
-- **`heuristic`** (the default) — a zero-dependency regex matcher that looks for self-introductions and guest introductions/direct-address ("I'm Dana", "welcome, Marcus") to infer names. Runs fully offline, no external process or network call.
+- **`off`** (the default) — skip naming and keep the raw `SPEAKER_xx` labels, non-interactively. Nothing is guessed, so a wrong name can never ship.
+- **`manual`** — no inference: earwig prompts you to type each speaker's name as you review the samples. Zero dependencies, fully offline.
 - **`claude`** — shells out to the [Claude CLI](https://github.com/anthropics/claude-code) (`claude -p`) with a small text slice from the transcript. Requires the `claude` CLI on your `PATH`, authenticated.
 - **`local`** — sends the same kind of prompt to a local [Ollama](https://ollama.com) server (`http://localhost:11434`). Requires Ollama running with a model pulled.
-- **`off`** — skip naming entirely and keep the raw `SPEAKER_xx` labels non-interactively.
-- **`auto`** — use `claude` if the Claude CLI is installed, otherwise fall back to `heuristic`.
 
-If `--namer` is omitted, earwig checks the `EARWIG_NAMER` environment variable, then falls back to `heuristic`. Both `claude` and `local` degrade gracefully to raw speaker ids if the underlying service is unavailable at runtime — they never crash the run. `earwig setup` records your choice for you, so you don't have to set `EARWIG_NAMER` by hand.
+Earlier versions shipped a `heuristic` regex namer and an `auto` mode; both were removed because regex name-inference wasn't accurate enough to trust (a wrong name is worse than none). A persisted `EARWIG_NAMER=heuristic`/`auto` now warns and falls back to `off`.
+
+If `--namer` is omitted, earwig checks the `EARWIG_NAMER` environment variable, then falls back to `off`. Both `claude` and `local` degrade gracefully to raw speaker ids if the underlying service is unavailable at runtime — they never crash the run. `earwig setup` records your choice for you, so you don't have to set `EARWIG_NAMER` by hand.
 
 ## Troubleshooting
 
 - **`GatedRepoError` / 403 on a pyannote model** — you haven't accepted that model's terms. Open the model page (see Setup) and click "Agree and access repository".
 - **`torchcodec` / `libtorchcodec` warning about ffmpeg versions** — harmless. whisperX falls back to another audio backend; transcription and diarization still run.
-- **A speaker stays `SPEAKER_xx`** — the namer couldn't infer that person's name from context (e.g. a host who never says their own name), or `--namer off`/an unreachable `claude`/`local` service degraded to raw labels. In review mode, just type it; `--auto` keeps the raw label.
+- **A speaker stays `SPEAKER_xx`** — expected under the default `--namer off`. It also happens when a `claude`/`local` namer couldn't infer that person's name (e.g. a host who never says their own name) or the service was unreachable and degraded to raw labels. To label speakers, re-run with `--namer manual` (type them) or `--namer claude`/`local`; in review mode just type the name (`--auto` keeps whatever was guessed).
 
 ## Development
 
