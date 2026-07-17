@@ -15,9 +15,9 @@ def test_parse_args_namer_choice():
     assert args.namer == "off"
 
 
-def test_resolve_namer_defaults_to_heuristic(monkeypatch):
+def test_resolve_namer_defaults_to_off(monkeypatch):
     monkeypatch.delenv("EARWIG_NAMER", raising=False)
-    assert cli._resolve_namer(None) == "heuristic"
+    assert cli._resolve_namer(None) == "off"
 
 
 def test_resolve_namer_reads_env(monkeypatch):
@@ -27,24 +27,33 @@ def test_resolve_namer_reads_env(monkeypatch):
 
 def test_resolve_namer_explicit_flag_beats_env(monkeypatch):
     monkeypatch.setenv("EARWIG_NAMER", "local")
-    assert cli._resolve_namer("heuristic") == "heuristic"
+    assert cli._resolve_namer("claude") == "claude"
 
 
-def test_resolve_namer_auto_prefers_claude_when_present(monkeypatch):
-    monkeypatch.delenv("EARWIG_NAMER", raising=False)
-    monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/claude")
-    assert cli._resolve_namer("auto") == "claude"
+def test_resolve_namer_removed_value_warns_and_degrades_to_off(monkeypatch, capsys):
+    # A stale persisted EARWIG_NAMER=heuristic/auto must not crash -- warn + off.
+    monkeypatch.setenv("EARWIG_NAMER", "heuristic")
+    assert cli._resolve_namer(None) == "off"
+    err = capsys.readouterr().err
+    assert "heuristic" in err and "off" in err
 
 
-def test_resolve_namer_auto_falls_back_to_heuristic(monkeypatch):
-    monkeypatch.delenv("EARWIG_NAMER", raising=False)
-    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
-    assert cli._resolve_namer("auto") == "heuristic"
-
-
-def test_resolve_namer_invalid_env_falls_back_to_heuristic(monkeypatch):
+def test_resolve_namer_unknown_env_degrades_to_off(monkeypatch):
     monkeypatch.setenv("EARWIG_NAMER", "bogus")
-    assert cli._resolve_namer(None) == "heuristic"
+    assert cli._resolve_namer(None) == "off"
+
+
+def test_main_unlabeled_speakers_prints_hint(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "t.md"
+    meta = Metadata(title="T", channel="C", duration_seconds=60, url="u")
+    monkeypatch.setattr(cli, "fetch", lambda url, workdir: ("/fake/a.wav", meta))
+    monkeypatch.setattr(cli, "transcribe",
+                        lambda audio, model_size: [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")])
+    monkeypatch.setattr(cli, "resolve_names",
+                        lambda paras, **kw: {"SPEAKER_00": "SPEAKER_00"})
+    code = cli.main(["u", "--namer", "off", "--output", str(out)])
+    assert code == 0
+    assert "--namer claude" in capsys.readouterr().err
 
 
 def test_main_writes_transcript(tmp_path, monkeypatch, capsys):
@@ -99,8 +108,8 @@ def test_main_namer_off_skips_confirm_prompt(tmp_path, monkeypatch, capsys):
 
 
 def test_main_interactive_abort_writes_nothing(tmp_path, monkeypatch, capsys):
-    # Interactive mode (no --auto): answering 'n' at the [Y/n] gate must abort
-    # with exit 1 and never create the output file.
+    # Interactive mode (a naming namer, no --auto): answering 'n' at the [Y/n]
+    # gate must abort with exit 1 and never create the output file.
     out = tmp_path / "episode.md"
     meta = Metadata(title="Ep", channel="Pod", duration_seconds=60, url="u")
 
@@ -112,7 +121,7 @@ def test_main_interactive_abort_writes_nothing(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "resolve_names", lambda paras, **kw: {"SPEAKER_00": "Alice"})
     monkeypatch.setattr("builtins.input", lambda prompt="": "n")
 
-    code = cli.main(["u", "--output", str(out)])
+    code = cli.main(["u", "--namer", "manual", "--output", str(out)])
     assert code == 1
     assert not out.exists()
     assert "Aborted" in capsys.readouterr().err

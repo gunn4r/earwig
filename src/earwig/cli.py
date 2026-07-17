@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -31,8 +30,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
                         help="output path (default: ./<sanitized-title>.md)")
     parser.add_argument(
         "--namer", choices=NAMER_CHOICES, default=None,
-        help="speaker-naming strategy (default: heuristic, or $EARWIG_NAMER). "
-             "auto = claude if installed, else heuristic; off = keep raw SPEAKER_xx labels",
+        help="speaker-naming strategy (default: off, or $EARWIG_NAMER). "
+             "off = keep raw SPEAKER_xx; manual = type names interactively; "
+             "claude/local = infer names with an LLM",
     )
     return parser.parse_args(argv)
 
@@ -67,12 +67,21 @@ def _setup_command(argv: list[str]) -> int:
         return 1
 
 
+_REMOVED_NAMERS = {"heuristic", "auto"}
+
+
 def _resolve_namer(selected: str | None) -> str:
-    name = selected or os.environ.get("EARWIG_NAMER") or "heuristic"
+    name = selected or os.environ.get("EARWIG_NAMER") or "off"
+    if name in _REMOVED_NAMERS:
+        print(
+            f"warning: namer '{name}' has been removed; naming is now opt-in. "
+            "Falling back to 'off' (raw SPEAKER_xx). "
+            "Use --namer claude | local | manual to label speakers.",
+            file=sys.stderr,
+        )
+        return "off"
     if name not in NAMER_CHOICES:
-        name = "heuristic"
-    if name == "auto":
-        name = "claude" if shutil.which("claude") else "heuristic"
+        return "off"
     return name
 
 
@@ -102,6 +111,14 @@ def main(argv: list[str] | None = None) -> int:
             if input("Write transcript? [Y/n]: ").strip().lower() == "n":
                 print("Aborted.", file=sys.stderr)
                 return 1
+        elif all(name == sid for sid, name in speaker_map.items()):
+            # Non-interactive run that produced no labels (default off, or a
+            # degraded LLM run) -- point the user at the naming options.
+            print(
+                "Speakers left as SPEAKER_xx. Re-run with "
+                "--namer claude | local | manual to label them.",
+                file=sys.stderr,
+            )
 
         markdown = to_markdown(metadata, paragraphs, speaker_map)
         out_path = Path(args.output or f"{sanitize_filename(metadata.title)}.md")
