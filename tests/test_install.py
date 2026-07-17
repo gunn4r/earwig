@@ -1,7 +1,14 @@
+import os
 import subprocess
 from pathlib import Path
 
 INSTALL_SH = Path(__file__).resolve().parent.parent / "install.sh"
+
+# The POSIX shell to run install.sh under. CI's /bin/sh is dash; a dev machine's
+# is often bash. They differ in ways that matter (e.g. `command -v` returns 127
+# vs 1 for a missing command), so reproduce CI locally with:
+#     EARWIG_TEST_SH=/bin/dash pytest tests/test_install.py
+SH = os.environ.get("EARWIG_TEST_SH", "/bin/sh")
 
 
 def _shim(bindir, name, body="#!/bin/sh\nexit 0\n"):
@@ -32,7 +39,7 @@ def _source(fn, bindir, **extra):
     """Source install.sh (main suppressed) and run one function."""
     env = _env(bindir, EARWIG_INSTALL_LIB="1", **extra)
     return subprocess.run(
-        ["/bin/sh", "-c", f". '{INSTALL_SH}'; {fn}"],
+        [SH, "-c", f". '{INSTALL_SH}'; {fn}"],
         capture_output=True, text=True, env=env,
     )
 
@@ -107,7 +114,10 @@ def test_have_ffmpeg_true(tmp_path):
 
 def test_have_ffmpeg_false(tmp_path):
     b = _bindir(tmp_path)
-    assert _source("have_ffmpeg", b).returncode == 1
+    # have_ffmpeg returns `command -v`'s status directly, which is "not found"
+    # but not a fixed number: dash exits 127, bash 1. Assert non-zero, not a
+    # specific code — have_ffmpeg is only ever used in a boolean `if !` context.
+    assert _source("have_ffmpeg", b).returncode != 0
 
 
 def test_ffmpeg_hint_macos_mentions_brew(tmp_path):
@@ -165,7 +175,7 @@ def test_resolve_earwig_no_crash_when_home_unset(tmp_path):
     b = _bindir(tmp_path)
     env = {"PATH": str(b), "EARWIG_INSTALL_LIB": "1"}  # deliberately no HOME
     r = subprocess.run(
-        ["/bin/sh", "-c", f". '{INSTALL_SH}'; resolve_earwig"],
+        [SH, "-c", f". '{INSTALL_SH}'; resolve_earwig"],
         capture_output=True, text=True, env=env,
     )
     assert r.returncode == 0
@@ -178,7 +188,7 @@ def test_resolve_earwig_no_crash_when_home_unset(tmp_path):
 def _run(bindir, **extra):
     """Execute install.sh so main() runs, with a restricted PATH."""
     return subprocess.run(
-        ["/bin/sh", str(INSTALL_SH)],
+        [SH, str(INSTALL_SH)],
         capture_output=True, text=True, env=_env(bindir, **extra),
     )
 
