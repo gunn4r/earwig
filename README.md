@@ -72,7 +72,17 @@ YouTube URL
 
 ## Install
 
-    uv tool install .        # or: pipx install .
+The one-line installer sets everything up — it installs earwig with [uv](https://docs.astral.sh/uv/) (or pipx), warns you if `ffmpeg` is missing, and launches `earwig setup`:
+
+    curl -fsSL https://raw.githubusercontent.com/gunn4r/earwig/main/install.sh | sh
+
+It's safe to re-run (it upgrades in place) and never uses `sudo`. On a machine with neither uv nor pipx it tells you how to get uv rather than installing anything behind your back.
+
+Prefer to run it yourself? Install straight from git:
+
+    uv tool install git+https://github.com/gunn4r/earwig@main     # or: pipx install git+https://github.com/gunn4r/earwig@main
+
+(From a local checkout, `uv tool install .` works too.)
 
 ## Setup (one time)
 
