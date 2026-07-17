@@ -164,15 +164,19 @@ def check_namer(namer: str) -> CheckResult:
         if status == 200:
             return CheckResult(name, True, f"Ollama reachable at {OLLAMA_BASE_URL}")
         return CheckResult(name, False, f"Ollama responded with HTTP {status}")
-    return CheckResult(name, True, "ready (no external dependency)")
+    if namer == "off":
+        return CheckResult(name, True, "no naming — speakers stay SPEAKER_xx")
+    if namer == "manual":
+        return CheckResult(name, True, "interactive — you type the names")
+    return CheckResult(name, True, "ready")
 
 
 def _prompt_namer(input_fn: Callable[[str], str]) -> str:
     # Default to whatever is already configured, so re-running setup and
     # pressing Enter preserves the user's choice instead of resetting it.
-    current = os.environ.get("EARWIG_NAMER") or "heuristic"
+    current = os.environ.get("EARWIG_NAMER") or "off"
     if current not in NAMER_CHOICES:
-        current = "heuristic"
+        current = "off"
     choices = ", ".join(NAMER_CHOICES)
     entry = _ask(input_fn, f"Default speaker namer ({choices}) [{current}]: ").strip()
     # Mirror cli._resolve_namer: an unrecognized answer degrades rather than
