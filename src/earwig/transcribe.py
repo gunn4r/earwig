@@ -22,6 +22,12 @@ def _segments_from_whisperx(result: dict) -> list[Segment]:
     return segments
 
 
+def _compute_type(device: str) -> str:
+    # faster-whisper/CTranslate2 backend: float16 is the standard on CUDA,
+    # int8 keeps CPU runs tractable.
+    return "float16" if device == "cuda" else "int8"
+
+
 def transcribe(
     audio_path: str,
     *,
@@ -40,7 +46,7 @@ def transcribe(
     import whisperx  # imported lazily so unit tests and --help stay fast
     from whisperx.diarize import DiarizationPipeline  # moved off top level in whisperX 3.8+
 
-    model = whisperx.load_model(model_size, device, compute_type="int8")
+    model = whisperx.load_model(model_size, device, compute_type=_compute_type(device))
     audio = whisperx.load_audio(audio_path)
     result = model.transcribe(audio)
 

@@ -40,3 +40,9 @@ def test_transcribe_hf_token_error_points_at_setup(monkeypatch):
     monkeypatch.delenv("HF_TOKEN", raising=False)
     with pytest.raises(TranscribeError, match="earwig setup"):
         transcribe("/nonexistent/audio.wav")
+
+
+def test_compute_type_maps_device():
+    from earwig.transcribe import _compute_type
+    assert _compute_type("cpu") == "int8"
+    assert _compute_type("cuda") == "float16"
