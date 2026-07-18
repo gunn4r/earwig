@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import unicodedata
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable
@@ -54,7 +55,13 @@ def parse_mapping(raw: str, speaker_ids: Iterable[str]) -> dict[str, str | None]
     def clean(value: object) -> str | None:
         # Only accept a non-empty string as a name; anything else (null, number,
         # list, empty string) degrades to None so it can't leak into the transcript.
-        return value.strip() if isinstance(value, str) and value.strip() else None
+        # Strip control characters first: the model's input is attacker-controlled
+        # transcript audio, so a name could carry ANSI/OSC escapes that would
+        # otherwise reach the terminal at the interactive confirm step.
+        if not isinstance(value, str):
+            return None
+        cleaned = "".join(c for c in value if unicodedata.category(c) != "Cc").strip()
+        return cleaned or None
 
     return {sid: clean(data.get(sid)) for sid in speaker_ids}
 
