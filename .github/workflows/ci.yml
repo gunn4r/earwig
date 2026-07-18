@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: every job here only reads the repo (checkout, pytest,
+# towncrier check, shellcheck). A job that ever needs more can widen locally.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -46,10 +51,12 @@ jobs:
           python-version: "3.12"
 
       - name: Check for a changelog fragment
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           python -m pip install --upgrade pip
           pip install "towncrier>=23.11"
-          towncrier check --compare-with origin/${{ github.base_ref }}
+          towncrier check --compare-with "origin/${BASE_REF}"
 
   shellcheck:
     runs-on: ubuntu-latest
