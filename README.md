@@ -84,6 +84,12 @@ Prefer to run it yourself? Install straight from git:
 
 (From a local checkout, `uv tool install .` works too.)
 
+### Updating and uninstalling
+
+`earwig update` upgrades in place — it detects how earwig was installed (uv tool, pipx, or pip) and runs the matching upgrade, pulling the latest build from `main`. If you're running from a source checkout, it tells you to `git pull` instead. Check what you're on with `earwig --version`.
+
+To remove it, use the same tool that installed it — e.g. `uv tool uninstall earwig` or `pipx uninstall earwig`.
+
 ## Setup (one time)
 
 Run the setup wizard — it explains what's needed, opens the right pages, stores your token, and verifies everything:
@@ -121,6 +127,8 @@ then either export the token or put it in one of the files above:
     earwig "<url>" --namer claude --auto           # infer names, skip the review step
     earwig "<url>" --namer off                     # explicit no-naming (same as default)
     earwig "<url>" --model medium --output ep.md   # faster model, explicit output path
+    earwig --version                               # print the installed version
+    earwig update                                  # upgrade earwig to the latest build
 
 By default earwig writes the transcript non-interactively with anonymous `SPEAKER_xx` labels. When you opt into a namer (`manual`, `claude`, or `local`), review mode shows a sample line for each detected speaker and its guessed name; press Enter to accept or type a correction (add `--auto` to skip the review). Assigning the same name to two speaker IDs merges them — handy when diarization over-splits a speaker.
 

@@ -213,3 +213,53 @@ def test_main_loads_config(monkeypatch):
     monkeypatch.setattr(cli, "run_setup", lambda **kw: 0)
     cli.main(["setup"])
     assert called == [True]
+
+
+def test_main_version_subcommand_prints_and_exits_zero(capsys):
+    code = cli.main(["version"])
+    assert code == 0
+    assert "earwig" in capsys.readouterr().out
+
+
+def test_main_version_flag_exits_zero(capsys):
+    # argparse's version action raises SystemExit(0) after printing.
+    import pytest
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--version"])
+    assert exc.value.code == 0
+    assert "earwig" in capsys.readouterr().out
+
+
+def test_main_update_dispatches_to_run_update(monkeypatch):
+    seen = {}
+
+    def fake_run_update():
+        seen["called"] = True
+        return 3
+
+    monkeypatch.setattr(cli, "run_update", fake_run_update)
+    code = cli.main(["update"])
+    assert code == 3
+    assert seen["called"] is True
+
+
+def test_main_update_help_does_not_run_update(monkeypatch):
+    # `earwig update --help` must show usage and exit 0, NOT trigger an upgrade.
+    import pytest
+    ran = []
+    monkeypatch.setattr(cli, "run_update", lambda: ran.append(True) or 0)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["update", "--help"])
+    assert exc.value.code == 0
+    assert ran == []
+
+
+def test_main_update_rejects_unknown_flag(monkeypatch):
+    # An unknown flag must error out (exit 2), never silently upgrade.
+    import pytest
+    ran = []
+    monkeypatch.setattr(cli, "run_update", lambda: ran.append(True) or 0)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["update", "--bogus"])
+    assert exc.value.code == 2
+    assert ran == []
