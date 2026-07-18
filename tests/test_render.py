@@ -77,3 +77,51 @@ def test_merges_interleaved_same_name_across_ids():
     md = to_markdown(_meta(), paras, {"SPEAKER_00": "Chris", "SPEAKER_01": "Chris"})
     assert md.count("**Chris**") == 1
     assert "One. Two. Three." in md
+
+
+# --- untrusted-input escaping (issue #15) -----------------------------------
+# title/channel come verbatim from yt-dlp, body text from the spoken transcript,
+# and names can come from an LLM whose input is that transcript. All are
+# attacker-controlled and must be neutralized at the Markdown render boundary.
+
+
+def test_escapes_html_in_title_and_channel():
+    meta = Metadata(title='<img src=x onerror="alert(1)">', channel="A & B <b>",
+                    duration_seconds=60, url="https://e/x")
+    md = to_markdown(meta, [Paragraph("SPEAKER_00", 0.0, "hi")], {})
+    assert "<img" not in md
+    assert "&lt;img src=x onerror=" in md
+    assert "A &amp; B &lt;b&gt;" in md
+
+
+def test_escapes_link_and_code_syntax_in_body_and_name():
+    paras = [Paragraph("SPEAKER_00", 0.0, "see [here](javascript:alert) and `code`")]
+    md = to_markdown(_meta(), paras, {"SPEAKER_00": "[x](javascript:1)"})
+    # javascript survives as literal text but never as an active link/code span
+    assert "[here](" not in md
+    assert "\\[here\\](javascript:alert)" in md
+    assert "\\`code\\`" in md
+    assert "**\\[x\\](javascript:1)**" in md
+
+
+def test_url_breakout_is_neutralized():
+    meta = Metadata(title="T", channel="C", duration_seconds=60,
+                    url="https://e/x)evil")
+    md = to_markdown(meta, [Paragraph("SPEAKER_00", 0.0, "hi")], {})
+    # the ) is percent-encoded so it cannot close the [source](...) link early
+    assert "https://e/x%29evil" in md
+    assert "x)evil" not in md
+
+
+def test_non_http_url_is_not_linked():
+    meta = Metadata(title="T", channel="C", duration_seconds=60,
+                    url="javascript:alert(1)")
+    md = to_markdown(meta, [Paragraph("SPEAKER_00", 0.0, "hi")], {})
+    assert "javascript:" not in md
+    assert "· source*" in md  # rendered as plain text, no link target
+
+
+def test_strips_control_chars_from_rendered_text():
+    paras = [Paragraph("SPEAKER_00", 0.0, "a\x1b[31mred\x1b[0m")]
+    md = to_markdown(_meta(), paras, {"SPEAKER_00": "N\x1bame"})
+    assert "\x1b" not in md

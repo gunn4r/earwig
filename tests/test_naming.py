@@ -62,6 +62,22 @@ def test_parse_mapping_rejects_non_string_and_empty_values():
     }
 
 
+def test_parse_mapping_strips_control_chars_from_names():
+    # An LLM (driven by attacker-controlled transcript audio) could return a name
+    # laced with ANSI/OSC escapes; strip them so they can't reach the terminal.
+    raw = '{"SPEAKER_00": "\\u001b[31mEvil\\u001b[0m", "SPEAKER_01": "Jane"}'
+    out = parse_mapping(raw, ["SPEAKER_00", "SPEAKER_01"])
+    assert "\x1b" not in (out["SPEAKER_00"] or "")
+    assert out["SPEAKER_00"] == "[31mEvil[0m"
+    assert out["SPEAKER_01"] == "Jane"
+
+
+def test_parse_mapping_control_only_name_degrades_to_none():
+    raw = '{"SPEAKER_00": "\\u001b\\u0007"}'
+    out = parse_mapping(raw, ["SPEAKER_00"])
+    assert out["SPEAKER_00"] is None
+
+
 def test_infer_names_uses_injected_runner():
     runner = lambda prompt: '{"SPEAKER_00": "Alice", "SPEAKER_01": "Bob"}'
     out = infer_names(paras(), runner=runner)
