@@ -18,11 +18,19 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Speech",
     "Topic :: Text Processing :: Linguistic",
 ]
-# whisperX 3.8+ is required: the diarization API and default model differ from earlier
-# releases, and earwig targets the 3.8 layout (whisperx.diarize.DiarizationPipeline).
 dependencies = [
+    # Calendar-versioned and must stay current: YouTube changes routinely break
+    # older releases, so yt-dlp is intentionally left uncapped.
     "yt-dlp>=2024.1.1",
-    "whisperx>=3.8",
+    # earwig targets the whisperX 3.8 diarization layout
+    # (whisperx.diarize.DiarizationPipeline); the API and default model drift
+    # across minors, so pin to the tested 3.8 series. whisperX brings torch
+    # (~=2.8) transitively.
+    "whisperx>=3.8,<3.9",
+    # pyannote-audio 4.x is the tested diarization backend (also required by
+    # whisperX). Cap the major so a 5.x release can't silently change model
+    # loading.
+    "pyannote-audio>=4,<5",
 ]
 
 [project.optional-dependencies]

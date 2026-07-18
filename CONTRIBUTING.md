@@ -1,6 +1,6 @@
 # Contributing to earwig
 
-Thanks for your interest in improving earwig!
+Thanks for your interest in improving earwig! By participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Development setup
 

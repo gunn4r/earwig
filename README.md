@@ -92,12 +92,12 @@ To remove it, use the same tool that installed it — e.g. `uv tool uninstall ea
 
 ## Compatibility
 
-- **macOS (Apple Silicon):** confirmed working end-to-end (the development machine, Python 3.12).
+- **macOS (Apple Silicon):** confirmed working end-to-end (Python 3.12).
 - **macOS (Intel):** unverified, but expected to work — it uses the same wheels.
-- **Linux:** the fast unit suite runs in CI on Python 3.11 and 3.12. The full torch/whisperX/pyannote pipeline ships Linux wheels and is expected to work, but has not yet been run end-to-end here.
+- **Linux:** the fast unit suite runs in CI on Python 3.11 and 3.12. The full torch/whisperX/pyannote pipeline ships Linux wheels and is expected to work, but is not yet verified end-to-end.
 - **Windows:** unverified and likely rough (torch and ffmpeg pathing). Use [WSL2](https://learn.microsoft.com/windows/wsl/install) and follow the Linux path.
 - **Python:** 3.11 and 3.12 are tested (the CI matrix). 3.13 is not yet supported (dependency wheel availability); 3.12 is the safe pick.
-- **Hardware / GPU:** CPU works but is slow — the default `large-v3` model runs roughly 10–30+ minutes per hour of audio. Use `--model base` or `--model medium` to trade some accuracy for a much faster run. On an NVIDIA GPU, `--device cuda` speeds transcription substantially (it uses `float16`). Apple Silicon transcribes on CPU regardless: the underlying faster-whisper/CTranslate2 backend has no Apple-GPU support, which is why there is no `mps` option. The `--device cuda` path is implemented against whisperX's documented API but has not yet been verified on real CUDA hardware.
+- **Hardware / GPU:** CPU works but is slow — the default `large-v3` model runs roughly 10–30+ minutes per hour of audio. Use `--model base` or `--model medium` to trade some accuracy for a much faster run. On an NVIDIA GPU, `--device cuda` speeds transcription substantially (it uses `float16`). Apple Silicon transcribes on CPU regardless: the underlying faster-whisper/CTranslate2 backend has no Apple-GPU support, which is why there is no `mps` option. The `--device cuda` path is built against whisperX's documented API but is not yet verified on CUDA hardware.
 
 ## Setup (one time)
 
@@ -153,8 +153,6 @@ Naming is opt-in. earwig selects a strategy with `--namer {off,manual,claude,loc
 - **`claude`** — shells out to the [Claude CLI](https://github.com/anthropics/claude-code) (`claude -p`) with a small text slice from the transcript. Requires the `claude` CLI on your `PATH`, authenticated.
 - **`local`** — sends the same kind of prompt to a local [Ollama](https://ollama.com) server (`http://localhost:11434`). Requires Ollama running with a model pulled.
 
-Earlier versions shipped a `heuristic` regex namer and an `auto` mode; both were removed because regex name-inference wasn't accurate enough to trust (a wrong name is worse than none). A persisted `EARWIG_NAMER=heuristic`/`auto` now warns and falls back to `off`.
-
 If `--namer` is omitted, earwig checks the `EARWIG_NAMER` environment variable, then falls back to `off`. Both `claude` and `local` degrade gracefully to raw speaker ids if the underlying service is unavailable at runtime — they never crash the run. `earwig setup` records your choice for you, so you don't have to set `EARWIG_NAMER` by hand.
 
 ## Troubleshooting
@@ -170,6 +168,8 @@ If `--namer` is omitted, earwig checks the `EARWIG_NAMER` environment variable, 
     pytest -q                     # fast unit suite (no token/network needed)
     pytest -m slow                # end-to-end test (needs HF_TOKEN, network, ffmpeg)
 
-## Licensing note
+## Licensing and model trust
 
 earwig's own code is MIT licensed (see [`LICENSE`](LICENSE)). The `pyannote` diarization models it downloads have their **own** licenses and gating terms, which you accept during setup — those govern your use of the models, separately from this tool's license.
+
+Loading those models runs code and deserialized weights published by their authors on Hugging Face — the same trust you extend to any Python package you install. earwig only ever fetches the official `pyannote` repositories named in setup; if you point it at other model repositories, vet them as you would any third-party code.
