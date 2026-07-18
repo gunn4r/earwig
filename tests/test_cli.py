@@ -48,7 +48,7 @@ def test_main_unlabeled_speakers_prints_hint(tmp_path, monkeypatch, capsys):
     meta = Metadata(title="T", channel="C", duration_seconds=60, url="u")
     monkeypatch.setattr(cli, "fetch", lambda url, workdir: ("/fake/a.wav", meta))
     monkeypatch.setattr(cli, "transcribe",
-                        lambda audio, model_size: [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")])
+                        lambda audio, model_size, device="cpu": [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")])
     monkeypatch.setattr(cli, "resolve_names",
                         lambda paras, **kw: {"SPEAKER_00": "SPEAKER_00"})
     code = cli.main(["u", "--namer", "off", "--output", str(out)])
@@ -62,7 +62,7 @@ def test_main_no_speakers_does_not_print_hint(tmp_path, monkeypatch, capsys):
     meta = Metadata(title="T", channel="C", duration_seconds=60, url="u")
     monkeypatch.setattr(cli, "fetch", lambda url, workdir: ("/fake/a.wav", meta))
     monkeypatch.setattr(cli, "transcribe",
-                        lambda audio, model_size: [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")])
+                        lambda audio, model_size, device="cpu": [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")])
     monkeypatch.setattr(cli, "resolve_names", lambda paras, **kw: {})
     code = cli.main(["u", "--namer", "off", "--output", str(out)])
     assert code == 0
@@ -76,7 +76,7 @@ def test_main_writes_transcript(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "fetch", lambda url, workdir: ("/fake/audio.wav", meta))
     monkeypatch.setattr(
         cli, "transcribe",
-        lambda audio, model_size: [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")],
+        lambda audio, model_size, device="cpu": [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")],
     )
     monkeypatch.setattr(cli, "resolve_names", lambda paras, **kw: {"SPEAKER_00": "Alice"})
 
@@ -106,7 +106,7 @@ def test_main_namer_off_skips_confirm_prompt(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "fetch", lambda url, workdir: ("/fake/audio.wav", meta))
     monkeypatch.setattr(
         cli, "transcribe",
-        lambda audio, model_size: [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")],
+        lambda audio, model_size, device="cpu": [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")],
     )
     monkeypatch.setattr(cli, "resolve_names", lambda paras, **kw: {"SPEAKER_00": "SPEAKER_00"})
 
@@ -129,7 +129,7 @@ def test_main_interactive_abort_writes_nothing(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "fetch", lambda url, workdir: ("/fake/audio.wav", meta))
     monkeypatch.setattr(
         cli, "transcribe",
-        lambda audio, model_size: [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")],
+        lambda audio, model_size, device="cpu": [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")],
     )
     monkeypatch.setattr(cli, "resolve_names", lambda paras, **kw: {"SPEAKER_00": "Alice"})
     monkeypatch.setattr("builtins.input", lambda prompt="": "n")
@@ -263,3 +263,26 @@ def test_main_update_rejects_unknown_flag(monkeypatch):
         cli.main(["update", "--bogus"])
     assert exc.value.code == 2
     assert ran == []
+
+
+def test_parse_args_device_default_and_choice():
+    assert cli.parse_args(["u"]).device == "cpu"
+    assert cli.parse_args(["u", "--device", "cuda"]).device == "cuda"
+
+
+def test_main_threads_device_into_transcribe(tmp_path, monkeypatch):
+    out = tmp_path / "t.md"
+    meta = Metadata(title="T", channel="C", duration_seconds=60, url="u")
+    seen = {}
+
+    def fake_transcribe(audio, *, model_size, device):
+        seen["device"] = device
+        return [Segment("Hi there.", 0.0, 1.0, "SPEAKER_00")]
+
+    monkeypatch.setattr(cli, "fetch", lambda url, workdir: ("/fake/a.wav", meta))
+    monkeypatch.setattr(cli, "transcribe", fake_transcribe)
+    monkeypatch.setattr(cli, "resolve_names", lambda paras, **kw: {"SPEAKER_00": "SPEAKER_00"})
+
+    code = cli.main(["u", "--device", "cuda", "--output", str(out)])
+    assert code == 0
+    assert seen["device"] == "cuda"

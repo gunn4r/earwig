@@ -90,6 +90,15 @@ Prefer to run it yourself? Install straight from git:
 
 To remove it, use the same tool that installed it — e.g. `uv tool uninstall earwig` or `pipx uninstall earwig`.
 
+## Compatibility
+
+- **macOS (Apple Silicon):** confirmed working end-to-end (the development machine, Python 3.12).
+- **macOS (Intel):** unverified, but expected to work — it uses the same wheels.
+- **Linux:** the fast unit suite runs in CI on Python 3.11 and 3.12. The full torch/whisperX/pyannote pipeline ships Linux wheels and is expected to work, but has not yet been run end-to-end here.
+- **Windows:** unverified and likely rough (torch and ffmpeg pathing). Use [WSL2](https://learn.microsoft.com/windows/wsl/install) and follow the Linux path.
+- **Python:** 3.11 and 3.12 are tested (the CI matrix). 3.13 is not yet supported (dependency wheel availability); 3.12 is the safe pick.
+- **Hardware / GPU:** CPU works but is slow — the default `large-v3` model runs roughly 10–30+ minutes per hour of audio. Use `--model base` or `--model medium` to trade some accuracy for a much faster run. On an NVIDIA GPU, `--device cuda` speeds transcription substantially (it uses `float16`). Apple Silicon transcribes on CPU regardless: the underlying faster-whisper/CTranslate2 backend has no Apple-GPU support, which is why there is no `mps` option. The `--device cuda` path is implemented against whisperX's documented API but has not yet been verified on real CUDA hardware.
+
 ## Setup (one time)
 
 Run the setup wizard — it explains what's needed, opens the right pages, stores your token, and verifies everything:
@@ -127,6 +136,7 @@ then either export the token or put it in one of the files above:
     earwig "<url>" --namer claude --auto           # infer names, skip the review step
     earwig "<url>" --namer off                     # explicit no-naming (same as default)
     earwig "<url>" --model medium --output ep.md   # faster model, explicit output path
+    earwig "<url>" --device cuda                    # transcribe on an NVIDIA GPU (much faster)
     earwig --version                               # print the installed version
     earwig update                                  # upgrade earwig to the latest build
 
