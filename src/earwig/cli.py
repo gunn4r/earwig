@@ -31,6 +31,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
                         help="apply Claude's speaker names without the confirm step")
     parser.add_argument("--model", default="large-v3",
                         help="Whisper model size (default: large-v3)")
+    parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu",
+                        help="compute device for transcription/diarization "
+                             "(default: cpu; use cuda on an NVIDIA GPU). "
+                             "Apple Silicon has no GPU option here — the "
+                             "faster-whisper backend is CPU/CUDA only.")
     parser.add_argument("--output", default=None,
                         help="output path (default: ./<sanitized-title>.md)")
     parser.add_argument(
@@ -121,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
             audio_path, metadata = fetch(args.url, workdir)
             print(f"Transcribing with {args.model} (this can take a while)...",
                   file=sys.stderr)
-            segments = transcribe(audio_path, model_size=args.model)
+            segments = transcribe(audio_path, model_size=args.model, device=args.device)
 
         paragraphs = build_paragraphs(segments)
         namer = _resolve_namer(args.namer)
