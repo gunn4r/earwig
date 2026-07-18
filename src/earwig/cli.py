@@ -73,6 +73,12 @@ def _setup_command(argv: list[str]) -> int:
 
 
 def _update_command(argv: list[str]) -> int:
+    # Parse (no options) so `earwig update --help` shows usage and an unknown
+    # flag errors -- rather than silently triggering a real upgrade.
+    argparse.ArgumentParser(
+        prog="earwig update",
+        description="Upgrade earwig in place to the latest build.",
+    ).parse_args(argv)
     try:
         return run_update()
     except KeyboardInterrupt:

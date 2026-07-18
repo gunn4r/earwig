@@ -241,3 +241,25 @@ def test_main_update_dispatches_to_run_update(monkeypatch):
     code = cli.main(["update"])
     assert code == 3
     assert seen["called"] is True
+
+
+def test_main_update_help_does_not_run_update(monkeypatch):
+    # `earwig update --help` must show usage and exit 0, NOT trigger an upgrade.
+    import pytest
+    ran = []
+    monkeypatch.setattr(cli, "run_update", lambda: ran.append(True) or 0)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["update", "--help"])
+    assert exc.value.code == 0
+    assert ran == []
+
+
+def test_main_update_rejects_unknown_flag(monkeypatch):
+    # An unknown flag must error out (exit 2), never silently upgrade.
+    import pytest
+    ran = []
+    monkeypatch.setattr(cli, "run_update", lambda: ran.append(True) or 0)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["update", "--bogus"])
+    assert exc.value.code == 2
+    assert ran == []
