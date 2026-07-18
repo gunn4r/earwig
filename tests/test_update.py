@@ -1,6 +1,6 @@
 import sys
 
-from earwig.update import PKG_SPEC, detect_manager, upgrade_command
+from earwig.update import PKG_SPEC, detect_manager, run_update, upgrade_command
 
 
 def _probe_map(mapping):
@@ -53,3 +53,59 @@ def test_upgrade_command_mapping():
     assert upgrade_command("pip") == [sys.executable, "-m", "pip", "install", "-U", PKG_SPEC]
     assert upgrade_command("editable") is None
     assert upgrade_command("unknown") is None
+
+
+def test_run_update_uv_executes_and_returns_code():
+    calls = []
+    probe = _probe_map({"uv": "earwig v0.2.0"})
+    out_lines = []
+    code = run_update(
+        probe=probe,
+        execute=lambda cmd: calls.append(cmd) or 0,
+        is_editable=lambda: False,
+        out=out_lines.append,
+    )
+    assert code == 0
+    assert calls == [["uv", "tool", "upgrade", "earwig"]]
+
+
+def test_run_update_passes_through_nonzero_exit():
+    probe = _probe_map({"uv": "earwig v0.2.0"})
+    code = run_update(
+        probe=probe,
+        execute=lambda cmd: 7,
+        is_editable=lambda: False,
+        out=lambda _msg: None,
+    )
+    assert code == 7
+
+
+def test_run_update_editable_prints_git_pull_and_returns_0():
+    executed = []
+    out_lines = []
+    code = run_update(
+        probe=_probe_map({"uv": None, "pipx": None}),
+        execute=lambda cmd: executed.append(cmd) or 0,
+        is_editable=lambda: True,
+        out=out_lines.append,
+    )
+    assert code == 0
+    assert executed == []                      # never shells out
+    assert any("git pull" in line for line in out_lines)
+
+
+def test_run_update_unknown_prints_manual_and_returns_1():
+    executed = []
+    out_lines = []
+    code = run_update(
+        probe=_probe_map({}),
+        execute=lambda cmd: executed.append(cmd) or 0,
+        is_editable=lambda: False,
+        out=out_lines.append,
+    )
+    assert code == 1
+    assert executed == []
+    joined = "\n".join(out_lines)
+    assert "uv tool upgrade earwig" in joined
+    assert "pipx upgrade earwig" in joined
+    assert PKG_SPEC in joined

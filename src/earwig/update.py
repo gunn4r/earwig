@@ -61,3 +61,34 @@ def upgrade_command(manager: Manager) -> list[str] | None:
     if manager == "pip":
         return [sys.executable, "-m", "pip", "install", "-U", PKG_SPEC]
     return None
+
+
+def _default_execute(cmd: list[str]) -> int:
+    try:
+        return subprocess.run(cmd).returncode
+    except OSError:
+        return 1
+
+
+def run_update(
+    *,
+    probe: Callable[[list[str]], str | None] = _default_probe,
+    execute: Callable[[list[str]], int] = _default_execute,
+    is_editable: Callable[[], bool] = _is_editable,
+    out: Callable[[str], None] = print,
+) -> int:
+    manager = detect_manager(probe, is_editable)
+    cmd = upgrade_command(manager)
+    if cmd is not None:
+        out(f"Updating earwig via {manager}...")
+        return execute(cmd)
+    if manager == "editable":
+        out("earwig is running from a source checkout — update it with `git pull`.")
+        return 0
+    out(
+        "Couldn't determine how earwig was installed. To update, run one of:\n"
+        "  uv tool upgrade earwig\n"
+        "  pipx upgrade earwig\n"
+        f"  {sys.executable} -m pip install -U {PKG_SPEC}"
+    )
+    return 1
