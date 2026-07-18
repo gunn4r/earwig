@@ -7,6 +7,8 @@ import tempfile
 from pathlib import Path
 
 from .config import load_config
+from earwig import __version__
+
 from .fetch import fetch, sanitize_filename
 from .models import PodscribeError
 from .naming import NAMER_CHOICES, resolve_names
@@ -14,6 +16,7 @@ from .paragraphs import build_paragraphs
 from .render import to_markdown
 from .setup import run_setup
 from .transcribe import transcribe
+from .update import run_update
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -22,6 +25,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         description="Turn a YouTube podcast URL into a speaker-labeled Markdown transcript.",
     )
     parser.add_argument("url", help="YouTube video URL")
+    parser.add_argument("--version", action="version",
+                        version=f"%(prog)s {__version__}")
     parser.add_argument("--auto", action="store_true",
                         help="apply Claude's speaker names without the confirm step")
     parser.add_argument("--model", default="large-v3",
@@ -67,6 +72,14 @@ def _setup_command(argv: list[str]) -> int:
         return 1
 
 
+def _update_command(argv: list[str]) -> int:
+    try:
+        return run_update()
+    except KeyboardInterrupt:
+        print("\nUpdate cancelled.", file=sys.stderr)
+        return 1
+
+
 _REMOVED_NAMERS = {"heuristic", "auto"}
 
 
@@ -90,6 +103,11 @@ def main(argv: list[str] | None = None) -> int:
     load_config()
     if argv and argv[0] == "setup":
         return _setup_command(argv[1:])
+    if argv and argv[0] == "update":
+        return _update_command(argv[1:])
+    if argv and argv[0] == "version":
+        print(f"earwig {__version__}")
+        return 0
     args = parse_args(argv)
     try:
         with tempfile.TemporaryDirectory() as workdir:
