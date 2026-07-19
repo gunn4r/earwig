@@ -1,0 +1,1 @@
+Make the README version badge dynamic — it now reads the latest GitHub Release (`shields.io/github/v/release`) and links to the Releases page, instead of a hardcoded version string that silently went stale after each release.
