@@ -10,7 +10,7 @@ from .config import load_config
 from earwig import __version__
 
 from .fetch import fetch, sanitize_filename
-from .models import PodscribeError
+from .models import PipelineError
 from .naming import NAMER_CHOICES, resolve_names
 from .paragraphs import build_paragraphs
 from .render import to_markdown
@@ -154,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
         out_path.write_text(markdown, encoding="utf-8")
         print(f"Wrote {out_path}")
         return 0
-    except PodscribeError as exc:
+    except PipelineError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
