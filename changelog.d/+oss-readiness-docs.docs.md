@@ -1,1 +1,0 @@
-Add a `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1, linked from `CONTRIBUTING.md`) and tidy the README: drop the stale "earlier versions did X" naming note, trim internal-sounding compatibility phrasing, and document the trust model for the downloaded pyannote models.
