@@ -55,25 +55,9 @@ See `changelog.d/README.md` for the type/semver table.
 
 ## Releasing
 
-earwig follows [semver](https://semver.org) and is pre-1.0 (beta): `feature`/`removal` fragments bump the minor, `bugfix` bumps the patch.
+Releases are cut by the maintainer — as a contributor you don't need to do anything here beyond adding your changelog fragment (above); it rolls into the next release automatically.
 
-The easy path is the release script, which does the whole sequence (build changelog → bump version → reinstall → commit → tag) and stops short of pushing so you can review:
-
-```bash
-./scripts/release.sh 0.3.0 --dry-run   # preview the changelog only, change nothing
-./scripts/release.sh 0.3.0             # cut the release locally
-git push && git push origin v0.3.0     # publish once you're happy
-```
-
-It's a maintainer tool (POSIX bash — macOS/Linux; on Windows use WSL/Git Bash or the manual steps below). Under the hood it does exactly this, which you can also run by hand:
-
-1. Ensure the release's fragments are all in `changelog.d/`.
-2. Build the changelog: `towncrier build --version X.Y.Z` (compiles fragments into `CHANGELOG.md` and deletes them).
-3. Bump `version` in `pyproject.toml` to `X.Y.Z`.
-4. Reinstall so metadata updates: `pip install -e .` (then `python -c "import earwig; print(earwig.__version__)"` should print `X.Y.Z`).
-5. Commit, then tag: `git tag vX.Y.Z && git push --tags`.
-
-(Publishing to PyPI and the `earwig update` path are tracked separately.)
+For context: earwig follows [semver](https://semver.org) and is pre-1.0 (beta), so `feature`/`removal` fragments bump the minor and `bugfix` bumps the patch. The maintainer builds the changelog, bumps the version, and tags `vX.Y.Z` with `scripts/release.sh`, then publishes a GitHub Release carrying that version's notes. earwig is installed from git (`uv tool install git+https://github.com/gunn4r/earwig@main`), not from PyPI.
 
 ## Pull requests
 
