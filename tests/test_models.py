@@ -1,4 +1,4 @@
-from earwig.models import Metadata, Segment, Paragraph, FetchError, PodscribeError
+from earwig.models import Metadata, Segment, Paragraph, FetchError, PipelineError
 
 
 def test_dataclasses_construct():
@@ -11,4 +11,4 @@ def test_dataclasses_construct():
 
 
 def test_exception_hierarchy():
-    assert issubclass(FetchError, PodscribeError)
+    assert issubclass(FetchError, PipelineError)

@@ -29,17 +29,17 @@ class Paragraph:
     text: str
 
 
-class PodscribeError(Exception):
+class PipelineError(Exception):
     """Base class for expected, user-facing failures."""
 
 
-class FetchError(PodscribeError):
+class FetchError(PipelineError):
     pass
 
 
-class TranscribeError(PodscribeError):
+class TranscribeError(PipelineError):
     pass
 
 
-class NamingError(PodscribeError):
+class NamingError(PipelineError):
     pass
